@@ -46,9 +46,9 @@ USING EBIM -- Allows for multilined commands
 		env
 	endlist
 	dict test7:
-		name: "Ryan"
-		age: 21
-		job: "BUM"
+		name: "Bob"
+		age: 99
+		job: "Admin"
 		list: test6
 	enddict
 	"Test5 $test5$"
