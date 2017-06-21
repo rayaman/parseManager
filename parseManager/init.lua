@@ -1037,6 +1037,125 @@ function parseManager:next(chunk,a,env,dd)
 		}
 	end
 end
+function parseManager:RunCode(code,entry,sel,env) -- returns an env or selectVarName
+	local file = bin.new("ENTRY "..(entry or "START").."\n"..code)
+	local run=parseManager:load(file)
+	run._methods = self._methods
+	run.defualtENV=self.defualtENV
+	run.defualtENV=self.defualtENV
+	for i,v in pairs(env or {}) do
+		run.defualtENV[i]=v
+	end
+	local t=run:start()
+	while true do
+		if t.Type=="text" then
+			print(t.text)
+			t=run:next()
+		elseif t.Type=="condition" then
+			t=run:next()
+		elseif t.Type=="assignment" then
+			t=run:next()
+		elseif t.Type=="label" then
+			t=run:next()
+		elseif t.Type=="method" then
+			t=run:next()
+		elseif t.Type=="choice" then
+			t=run:next(nil,math.random(1,#t.choices),nil,t)
+		elseif t.Type=="end" then
+			if t.text=="leaking" then -- go directly to the block right under the current block if it exists
+				t=run:next()
+			else
+				return (run.defualtENV[sel] or run.defualtENV)
+			end
+		elseif t.Type=="error" then
+			error(t.text)
+		else
+			t=run:next()
+		end
+	end
+end
+parseManager.symbols={} -- {sym,code}
+function parseManager:registerSymbol(sym,code)
+	self.symbols[#self.symbols+1]={sym,code}
+end
+function parseManager:populateSymbolList(o)
+	local str=""
+	for i=1,#self.symbols do
+		str=self.symbols[i][1]..str
+	end
+	return str
+end
+function parseManager:isRegisteredSymbol(o,r,v)
+	for i=1,#self.symbols do
+		if self.symbols[i][1]==o then
+			return parseManager:RunCode(self.symbols[i][2],"CODE","ret-urn",{["l"]=r,["r"]=v,["mainenv"]=self.defualtENV})
+		end
+	end
+	return false --self:pushError("Invalid Symbol "..o.."!")
+end
+function parseManager:evaluate(cmd,v)
+	v=v or 0
+	local loop
+	local count=0
+	local function helper(o,v,r)
+		if type(v)=="string" then
+			if v:find("%D") then
+				v=self:varExists(v)
+			end
+		end
+		if type(r)=="string" then
+			if r:find("%D") then
+				r=self:varExists(r)
+			end
+		end
+		local r=tonumber(r) or 0
+		local gg=self:isRegisteredSymbol(o,r,v)
+		if gg then
+			return gg
+		elseif o=="+" then
+			return r+v
+		elseif o=="-" then
+			return r-v
+		elseif o=="/" then
+			return r/v
+		elseif o=="*" then
+			return r*v
+		elseif o=="^" then
+			return r^v
+		end
+	end
+	for i,v in pairs(math) do
+		cmd=cmd:gsub(i.."(%b())",function(a)
+			a=a:sub(2,-2)
+			if a:sub(1,1)=="-" then
+				a="0"..a
+			end
+			return v(self:evaluate(a))
+		end)
+	end
+	cmd=cmd:gsub("%b()",function(a)
+		return self:evaluate(a:sub(2,-2))
+	end)
+	for l,o,r in cmd:gmatch("(.*)([%+%^%-%*/"..self:populateSymbolList().."])(.*)") do
+		loop=true
+		count=count+1
+		if l:find("[%+%^%-%*/]") then
+			v=self:evaluate(l,v)
+			v=helper(o,r,v)
+		else
+			if count==1 then
+				v=helper(o,r,l)
+			end
+		end
+	end
+	if not loop then return self:varExists(cmd) end
+	return v
+end
+parseManager.constructType=function(self,name,t,data,filename)
+	if t~="construct" then return end
+	--print(name,t,"[CODE]{"..data.."}")
+	self:registerSymbol(name,"[CODE]{"..data.."}")
+end
 -- Let's add function
 Stack = {}
 function Stack:Create()
