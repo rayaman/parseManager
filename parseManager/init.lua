@@ -90,7 +90,8 @@ parseManager._types={}
 parseManager.__index=parseManager
 parseManager._variables={__TYPE="ENV"}
 parseManager.defualtENV=parseManager._variables
-function parseManager:varExists(var)
+function parseManager:varExists(var,inf)
+	--print(var)
 	if var==nil or var=="nil" then return end
 	if type(var)=="userdata" then return var end
 	if tonumber(var) then
@@ -102,6 +103,11 @@ function parseManager:varExists(var)
 	end
 	if var:find('"') then
 		return self:parseHeader(var:sub(2,-2),self.defualtENV)
+	end
+	if inf then
+		--print("NO!")
+	else
+		return self:evaluate(var)
 	end
 	if var:find("%[%]") then
 		return {}
@@ -785,12 +791,13 @@ function parseManager:next(chunk,a,env,dd)
 		end
 		return {Type="end",text="Reached end of block!",lastblock=self._cblockname,lastline=self._cblock[self.pos-1],blocktype=self._chunks[self._cblockname][2]}
 	end
-	local holder,functest,args=line:match("([%w_]-):([%w_]-)%s*%((.-)%)$")
+	local holder,functest,args=line:match("^([%w_]-):([%w_]-)%s*(%b())")
 	if not functest then
-		functest,args=line:match("([%w_]-)%s*%((.-)%)$")
+		functest,args=line:match("^([%w_]-)%s*(%b())")
 	end
-	if functest then
-		local funccheck=line:match("([%+%-%*/]+).-%(.-%)")
+	if not functest then
+		functest,args=line:match("([%w_]-)%s*(%b())")
+		local funccheck=line:match("([%+%-%*/"..self:populateSymbolList().."]+).-%(.-%)")
 		if funccheck then
 			functest=nil
 		end
@@ -800,6 +807,9 @@ function parseManager:next(chunk,a,env,dd)
 				break
 			end
 		end
+	end
+	if args then
+		args=args:sub(2,-2)
 	end
 	line=line:gsub("(.-)%[\"(.-)\"%]=(.+)",function(a,b,c)
 		return b.."="..c.."->"..a
@@ -945,12 +955,26 @@ function parseManager:next(chunk,a,env,dd)
 				vars={t}
 			end
 		end
-		_args={}
-		for k, v in ipairs(parseManager.split(args)) do
-			if type(v)=="userdata" then
-				table.insert(_args,v)
+		local _args={}
+		print("Calling: "..functest)
+		local loop=parseManager.split(args)
+		print("ARG COUNT: ",#loop,args)
+		for i=1,#loop do
+			print(loop[i])
+			if type(loop[i])=="userdata" then
+				table.insert(_args,loop[i])
 			else
-				table.insert(_args,(self:varExists(v)))
+--~ 				local test,val=pcall(self.evaluate,self,v)
+--~ 				print(test,k,val)
+--~ 				if test then
+--~ 					v=val
+--~ 				else
+--~ 					print("HERE!!!")
+--~ 					v=self:varExists(v)
+--~ 				end
+				local test=self:varExists(loop[i])
+				print("After Processing: ",test)
+				table.insert(_args,test)
 			end
 		end
 		if not holder then
@@ -1100,12 +1124,12 @@ function parseManager:evaluate(cmd,v)
 	local function helper(o,v,r)
 		if type(v)=="string" then
 			if v:find("%D") then
-				v=self:varExists(v)
+				v=self:varExists(v,true)
 			end
 		end
 		if type(r)=="string" then
 			if r:find("%D") then
-				r=self:varExists(r)
+				r=self:varExists(r,true)
 			end
 		end
 		local r=tonumber(r) or 0
@@ -1148,13 +1172,8 @@ function parseManager:evaluate(cmd,v)
 			end
 		end
 	end
-	if not loop then return self:varExists(cmd) end
+	if not loop then return self:varExists(cmd,true) end
 	return v
-end
-parseManager.constructType=function(self,name,t,data,filename)
-	if t~="construct" then return end
-	--print(name,t,"[CODE]{"..data.."}")
-	self:registerSymbol(name,"[CODE]{"..data.."}")
 end
 -- Let's add function
 Stack = {}
@@ -1248,30 +1267,11 @@ parseManager.funcType=function(link,name,t,data,filename)
     end
     link._methods[name]=func
 end
+--registerSymbol(sym,code)
 parseManager.OnExtendedBlock(parseManager.funcType)
-parseManager.constructType=function(link,name,t,data,filename)
-	local test,args=t:match("(construct)%(*([%w,]*)%)*")
-	if not test then return false end
-	local vars={}
-	if args~="" then
-		for k, v in ipairs(parseManager.split(args)) do
-			table.insert(vars,v)
-		end
-	end
-	link._chunks[name][1]=link._chunks[name][1].."\n__TRACEBACK()"
-    local func=function(self,...)
-		local args={...}
-		local env=self._methods.createENV(self)
-		local lastEnv=self._methods.getENV(self)
-		self.funcstack:push({self._cblockname,self.pos,lastEnv})
-		if self.funcstack:getn()>1024 then self:pushError("Stack Overflow!") end
-		self._methods.setENV(self,env)
-		for i=1,#vars do
-			self:setVariable(vars[i],args[i])
-		end
-		self._methods.JUMP(self,name)
-		return env
-    end
-    link._methods[name]=func
+parseManager.constructType=function(self,name,t,data,filename)
+	if t~="construct" then return end
+	--print(name,t,"[CODE]{"..data.."}")
+	self:registerSymbol(name,"[CODE]{"..data.."}")
 end
 parseManager.OnExtendedBlock(parseManager.constructType)

@@ -1,0 +1,114 @@
+ENTRY START
+ENABLE forseelabels
+DISABLE leaking
+ENABLE customcommands
+USING EBIM -- Allows for multilined commands
+[START]{
+	--Defualt enviroment is the GLOBAL one, you can create and swap between them whenever you want. You can have as many as you want as well
+	a=100
+	b=7
+	c=21
+	"$a$ $b$ $c$"
+	env=createENV()
+	setENV(env)
+	a=15
+	b=150
+	"$a$ $b$ $c$"
+	env=getENV("GLOBAL")
+	setENV(env)
+	"$a$ $b$ $c$"
+	test=a<-env -- get var a from an env and set it to test
+	"Test $test$"
+	test=51
+	a=test->env  -- set var a in env to test
+	"$a$ $b$ $c$"
+	setENV(env) -- lets go back to the modified enviroment
+	"$a$ $b$ $c$"
+	test2=stringLEN("$a$ $b$ $c$")
+	"Test2 $test2$"
+	string test5: -- no need for quotes, everything in the block is considered a string... Also no escaping is needed; however, endstring is not useable as a part of the string...
+		Yo I am able to make a multilined string if i want
+		Now I am at the next line lol!
+	endstring
+	list test6: -- create a multilined list
+		"elem1"
+		2
+		3
+		true
+		false
+		"elem6"
+		env
+	endlist
+	dict test7:
+		name: "Ryan"
+		age: 21
+		job: "BUM"
+		list: test6
+	enddict
+	"Test5 $test5$"
+	list=[1,2,3,4]
+	test4=list[2]
+	env["a"]=10
+	test3=env["a"]
+	"Test3 $test3$"
+	"List $test6[1]$"
+	"List $test6[2]$"
+	"List $test6[3]$"
+	"List $test6[4]$"
+	"List $test6[5]$"
+	"List $test6[6]$"
+	"List $test6[7]$"
+	"Dict $test7[name]$"
+	"Dict $test7[age]$"
+	"Dict $test7[job]$"
+	test9="name"
+	test8=test7[test9]
+	"Test8 $test8$"
+	data=test7[list]
+	data2=data[1]
+	"Test9 $data2$"
+	data=tester2(1,2,3)
+	"Now what are these $a$ $b$ $c$"
+	"$data[name]$"
+	"$data[me]$"
+	::choices::
+	"Pick?"<
+		"test1" JUMP(C1)
+		"test2" JUMP(C2)
+		"test3" JUMP(C3)
+	>
+	-- if name=="bob" or name=="ryan":
+		-- "ADMINS"
+	-- elseif name=="Joe"
+		-- "NOT ADMIN"
+	-- else
+		-- "Something else"
+	-- endif
+}
+[C1]{
+	"Hello1"
+	GOTO(choices)
+}
+[C2]{
+	"Hello2"
+	GOTO(choices)
+}
+[C3]{
+	"Hello3"
+	GOTO(choices)
+}
+[@:construct]{ -- l is left arg r is the right arg
+    ret=l*(r/100)
+    return(ret)
+}
+[tester:function]{
+	"lets go"
+	nest="hey"
+}
+[tester2:function(a,b,c)]{ -- functions return enviroments which can be indexed
+	"Interesting: $a$ $b$ $c$"
+	name="Ryan"
+	age=15
+	yo=tester()
+	me=yo["nest"]
+}
