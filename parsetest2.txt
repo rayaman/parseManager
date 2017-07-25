@@ -4,21 +4,7 @@ ENTRY START
 	a=10>1 -- bit shift
 	b=10<1
 	"test: $a$ $b$"
-	testfunc("hello",(5!),(2!)+2)
-	-- "Hello It is now time to do some tests!"
-	-- a=15
-	-- "a = $a$"
-	-- b=a@25
-	-- test2="Yo $a$ $b$" -- create a string with a and b vars
-	-- "$test2$"
-	-- "b = $b$"
-	-- c=5
-	-- "c = $c$"
-	-- cf=10+(5!)+10
-	-- test=(5~5)+5
-	-- "c! = $cf$ test = $test$"
-	-- "All done"
-	-- JUMP(NOVAR)
+	testfunc("hello",(5!),15@1)
 }
 [@:construct]{ -- get % out of 100
 	ret=l/(r/100)

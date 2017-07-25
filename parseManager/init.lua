@@ -956,11 +956,11 @@ function parseManager:next(chunk,a,env,dd)
 			end
 		end
 		local _args={}
-		print("Calling: "..functest)
+--~ 		print("Calling: "..functest)
 		local loop=parseManager.split(args)
-		print("ARG COUNT: ",#loop,args)
+--~ 		print("ARG COUNT: ",#loop,args)
 		for i=1,#loop do
-			print(loop[i])
+--~ 			print(loop[i])
 			if type(loop[i])=="userdata" then
 				table.insert(_args,loop[i])
 			else
@@ -973,7 +973,7 @@ function parseManager:next(chunk,a,env,dd)
 --~ 					v=self:varExists(v)
 --~ 				end
 				local test=self:varExists(loop[i])
-				print("After Processing: ",test)
+--~ 				print("After Processing: ",test)
 				table.insert(_args,test)
 			end
 		end
