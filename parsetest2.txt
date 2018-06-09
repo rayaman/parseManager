@@ -1,10 +1,13 @@
--- 감사합니다
 ENTRY START
 [START]{
-	a=10>1 -- bit shift
+	a=10>1
 	b=10<1
 	"test: $a$ $b$"
+	test["name"]="Ryan"
+	name=test["name"]
+	"Hi $test[name]$! $name$"
 	testfunc("hello",(5!),15@1)
+	test("hello",sqrt(5!),(15@1)/2)
 }
 [@:construct]{ -- get % out of 100
 	ret=l/(r/100)
@@ -29,6 +32,9 @@ ENTRY START
 		return(ret)
 	::end::
 }
+[test:function(a,b,c)]{
+	"$a$ $b$ $c$"
+}
 -- You dont have too many symbols left to use though. For now a symbol is only 1 char long so you are limited
 [fact:function(n)]{
 	count=1
@@ -46,7 +52,7 @@ ENTRY START
 --Bind the fact function to the symbol '!'
 [!:construct]{
 	env=fact(l)
-	ret=ret<-env
+	ret=env["ret"]
 	return(ret)
 }
 [NOVAR]{

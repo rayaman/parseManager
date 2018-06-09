@@ -1,0 +1,32 @@
+ENABLE leaking
+[TEST]{
+	"Jump was successful!"
+	--GOTO("HERE")
+}
+[START]{
+	"Test 1:"
+	t=15
+	test=2*100
+	"test = $test$"
+	c=5
+	::HERE::
+	a,b="sdf",true
+	"a,b,c = $a$ $b$ $c$"
+	food="yum" 
+	test=true
+	stop=21
+	"food = $food$"
+	"test = $test$"
+	"stop = $stop$"
+	"Test 2:"
+	count=0
+	::loop::
+		"Count = $count$"
+		count=count+1
+		if count>10 then GOTO("end")|GOTO("loop")
+	::end::
+	"Done!"
+	QUIT()
+}
+
+-- (count==stop and name=="bob") ? GOTO(end) : GOTO(loop)
