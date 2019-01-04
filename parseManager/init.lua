@@ -652,7 +652,7 @@ function parseManager:compile(name,ctype,data)
 			-- self:pushError("You cannot create a method with the same name as a standard method or duplicate method names!",name)
 		-- end
 		self.methods[name]=function(...)
-			self:Invoke(name,{},...)
+			self:Invoke(name,...)
 		end
 		self.mainENV[name]=self.methods[name]
 		table.insert(self.chunks[name],{

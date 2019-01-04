@@ -1,6 +1,6 @@
 package.path="?/init.lua;lua/?/init.lua;lua/?.lua;"..package.path
 local bin = require("bin")
-local multi = require("multi")
+--~ local multi = require("multi")
 require("parseManager")
 require("bit")
 parseManager:define({
