@@ -1,6 +1,6 @@
 package.path="?/init.lua;lua/?/init.lua;lua/?.lua;"..package.path
-require("bin")
-require("multi.all")
+local bin = require("bin")
+local multi = require("multi")
 require("parseManager")
 require("bit")
 parseManager:define({
@@ -15,7 +15,8 @@ parseManager:define({
 	end
 })
 test=parseManager:load("parsetest3.txt")
-t=test:start("START")
+t=test:next("START")
+print(test:dump())
 while true do
 	if t.Type=="text" then
 		print(t.text)

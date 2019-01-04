@@ -346,7 +346,7 @@ function parseManager:compileAssign(assignA,assignB,name)
 				assign.vals[#assign.vals+1]={}
 			else
 				assign.vals[#assign.vals+1]=pieceList(listB[k]:sub(2,-2),self,name)
-				table.print(assign.vals[#assign.vals])
+--~ 				table.print(assign.vals[#assign.vals])
 			end
 		elseif listB[k]:match("[%w_]-%[.-%]") then
 			local dict,sym=listB[k]:match("([%w_]-)%[(.-)%]")
@@ -377,10 +377,10 @@ function parseManager:compileAssign(assignA,assignB,name)
 		if not mathTest then
 			assign.vars[#assign.vars+1]=pieceAssign(listA[k],self,name)
 		else
-			print("FUCK!!!!!!!!!!!")
+			print("debugging:",assignA,assignB,name)
 		end
 	end
-	table.print(assign)
+--~ 	table.print(assign)
 	table.insert(self.chunks[name],assign)
 end
 function parseManager:compileCondition(condition,iff,elsee,name)
