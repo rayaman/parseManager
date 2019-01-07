@@ -6,6 +6,7 @@ parseManager.stats={}
 parseManager.stack={}
 parseManager.cFuncs={}
 parseManager.mainENV={}
+parseManager.__INTERNAL = {}
 parseManager.currentENV=parseManager.mainENV
 parseManager.entry="START"
 parseManager.methods={}
@@ -43,6 +44,13 @@ end
 function parseManager:exposeNamespace(name,ref)
 	self.mainENV[name]=ref
 end
+function factorial(n)
+    if (n == 0) then
+        return 1
+    else
+        return n * factorial(n - 1)
+    end
+end
 function parseManager:load(path,c)
 	local c = c
 	if not c then
@@ -64,6 +72,7 @@ function parseManager:load(path,c)
 		end
 	end
 	-- process the data
+	file.data=file.data:gsub("/%*.-%*/","")
 	file.data=file.data:gsub('%b""',function(a) a=a:gsub("//","\2") return a end)
 	file.data=file.data:gsub("%b''",function(a) a=a:gsub("//","\2") return a end)
 	file.data=file.data:gsub("//.-\n","\n")
@@ -111,6 +120,8 @@ function parseManager:load(path,c)
 		c:compile(name,ctype,data)
 	end
 	--c.chunks=readonlytable(c.chunks)
+	c.mainENV["False"]=false
+	c.mainENV["True"]=true
 	return c
 end
 function parseManager:extractState()
@@ -263,19 +274,19 @@ local function pieceList(list,self,name)
 	local L={}
 	local mathass=1
 	for i=1,#list do
-		if list[i]:match("[%w_]-%[.-%]") then
+		if list[i]:match("[%w_]-%[.-%]") and list[i]:sub(1,1)~='"' then
 			local dict,sym=list[i]:match("([%w_]-)%[(.-)%]")
 			if tonumber(sym) then
 				L[#L+1]={"\1"..dict,tonumber(sym),IsALookup=true}
 			elseif sym:sub(1,1)=="\"" and sym:sub(-1,-1)=="\"" then
 				L[#L+1]={"\1"..dict,sym:sub(2,-2),IsALookup=true}
 			end
+		elseif list[i]:sub(1,1)=="\"" and list[i]:sub(-1,-1)=="\"" then
+			L[#L+1]=list[i]:sub(2,-2)
 		elseif list[i]:sub(1,1)=="[" and list[i]:sub(-1,-1)=="]" then
 			L[#L+1]=pieceList(list[i]:sub(2,-2),self,name)
 		elseif tonumber(list[i]) then
 			L[#L+1]=tonumber(list[i])
-		elseif list[i]:sub(1,1)=="\"" and list[i]:sub(-1,-1)=="\"" then
-			L[#L+1]=list[i]:sub(2,-2)
 		elseif list[i]:match("[%w_]-%..-") then
 			local dict,sym=list[i]:match("([%w_]-)%.(.+)")
 			L[#L+1]={"\1"..dict,sym,IsALookup=true}
@@ -313,9 +324,9 @@ local function pieceAssign(a,self,name)
 		else
 			self:pushError("Invalid way to index a dictonary/array!",ind)
 		end
-	elseif a:match("[%w_]+")==a then
+	elseif a:match("[%$%w_]+")==a then
 		var="\1"..a
-	elseif a:match("[%w_]-%..-") then
+	elseif a:match("[%$%w_]-%..-") then
 		local dict,sym=a:match("([%w_]-)%.(.+)")
 		var={dict,sym,IsALookup=true}
 	elseif a:find(",") then
@@ -329,6 +340,18 @@ local function pieceAssign(a,self,name)
 	end
 	return var
 end
+function parseManager:compileFuncInExpr(list,name)
+	local c = 65
+	str = list:gsub("([%S]+)%s*%((.-)%)",function(a,b)
+		if a and b then
+			local d = "$"..string.char(c)
+			self:compileFWR(a,d,b,name)
+			c=c+1
+			return d
+		end
+	end)
+	return str
+end
 function parseManager:compileAssign(assignA,assignB,name)
 	local listA=parseManager.split(assignA)
 	local listB=parseManager.split(assignB)
@@ -339,15 +362,20 @@ function parseManager:compileAssign(assignA,assignB,name)
 	}
 	for k=1,#listA do
 		local mathTest=false
+		local parsetest=false
 		debug("VAL: "..listB[k])
 		debug("NAME: "..listA[k])
-		if listB[k]:sub(1,1)=="[" and listB[k]:sub(-1,-1)=="]" then
+		if tonumber(listB[k]) then
+			assign.vals[#assign.vals+1]=tonumber(listB[k])
+		elseif listB[k]:sub(1,1)=="[" and listB[k]:sub(-1,-1)=="]" then
 			if listB[k]:match("%[%]") then
 				assign.vals[#assign.vals+1]={}
 			else
 				assign.vals[#assign.vals+1]=pieceList(listB[k]:sub(2,-2),self,name)
---~ 				table.print(assign.vals[#assign.vals])
 			end
+		elseif listB[k]:sub(1,1)=="$" and listB[k]:sub(-1,-1)=="$" then
+			parsetest = true
+			self:compileFWR("__PUSHPARSE",listA[k],'"'..listB[k]..'"',name)
 		elseif listB[k]:match("[%w_]-%[.-%]") then
 			local dict,sym=listB[k]:match("([%w_]-)%[(.-)%]")
 			if tonumber(sym) then
@@ -355,11 +383,9 @@ function parseManager:compileAssign(assignA,assignB,name)
 			elseif sym:sub(1,1)=="\"" and sym:sub(-1,-1)=="\"" then
 				assign.vals[#assign.vals+1]={"\1"..dict,sym:sub(2,-2),IsALookup=true}
 			end
-		elseif listB[k]:match("[%w_]-%..-") then
+		elseif listB[k]:match("[%w_]-%..-") and not listB[k]:match("(%d-)%.(%d-)") then
 			local dict,sym=listB[k]:match("([%w_]-)%.(.+)")
 			assign.vals[#assign.vals+1]={"\1"..dict,sym,IsALookup=true}
-		elseif tonumber(listB[k]) then
-			assign.vals[#assign.vals+1]=tonumber(listB[k])
 		elseif listB[k]:sub(1,1)=="\"" and listB[k]:sub(-1,-1)=="\"" then
 			assign.vals[#assign.vals+1]=listB[k]:sub(2,-2)
 		elseif listB[k]=="true" then
@@ -368,19 +394,19 @@ function parseManager:compileAssign(assignA,assignB,name)
 			assign.vals[#assign.vals+1]=false
 		elseif listB[k]:match("[%w_]+")==listB[k] then
 			assign.vals[#assign.vals+1]="\1"..listB[k]
-		elseif listB[k]:match("[_%w%+%-/%*%^%(%)%%]+")==listB[k] then
+		elseif listB[k]:match("[_%$%w%+%-/%*%^%(%)%.%%%s]+")==listB[k] then
 			mathTest=true
-			self:compileExpr(listA[k],listB[k],name)
+			workit = self:compileFuncInExpr(listB[k],name)
+			self:compileExpr(listA[k],workit,name)
 		else
 			self:pushError("Invalid Systax:",listB[k])
 		end
-		if not mathTest then
+		if not mathTest and not parsetest then
 			assign.vars[#assign.vars+1]=pieceAssign(listA[k],self,name)
 		else
-			print("debugging:",assignA,assignB,name)
+			debug(assignA,assignB,name)
 		end
 	end
---~ 	table.print(assign)
 	table.insert(self.chunks[name],assign)
 end
 function parseManager:compileCondition(condition,iff,elsee,name)
@@ -502,7 +528,8 @@ function parseManager:compileExpr(eql,expr,name)
 			return expr
 		end
 	end
-	if expr:match("[!%$&_%w%+%-/%*%^%(%)%%]+")==expr then
+	if expr:match("[!%$%s&_%w%+%-/%*%.%^%(%)%%]+")==expr then
+		expr = expr:gsub("%s","")
 		parseManager:pieceExpr(expr)
 		cmds[#cmds]["vars"]={"\1"..eql}
 		for i=1,#cmds do
@@ -560,12 +587,13 @@ function parseManager:compileLogic(condition,iff,elsee,name)
 		conds=conds.." or 1==0"
 		conds=conds:gsub(" and ","\4")
 		conds=conds:gsub(" or ","\5")
-		conds=conds:gsub("(\".*[\4].*\")",function(a)
-			return a:gsub("\4"," and ")
-		end)
-		conds=conds:gsub("(\".*[\5].*\")",function(a)
-			return a:gsub("\4"," or ")
-		end)
+		-- conds=conds:gsub("(\".*[\4].*\")",function(a)
+			-- return a:gsub("\4"," and ")
+		-- end)
+		-- print(conds)
+		-- conds=conds:gsub("(\".*[\5].*\")",function(a)
+			-- return a:gsub("\4"," or ")
+		-- end)
 		local count=0
 		local mathass=0
 		_conds=conds:gsub("%s*\5".."1==0","")
@@ -582,18 +610,24 @@ function parseManager:compileLogic(condition,iff,elsee,name)
 			}
 			local l,r=(l:gsub("[\4\5\6]*%(","")),(r:gsub("%)",""))
 			if l=="true" then
+				-- print("L",1,r)
 				cmds.args[1]=true
 			elseif l=="false" then
+				-- print("L",2,r)
 				cmds.args[1]=false
 			elseif tonumber(l) then
+				-- print("L",3,r)
 				cmds.args[1]=tonumber(l)
 			elseif l:match("[%w_]+")==l then
+				-- print("L",4,r)
 				cmds.args[1]="\1"..l
-			elseif l:match("[_%w%+%-/%*%^%(%)%%]+")==l then
+			elseif l:match("[%._%w%+%-/%*%^%(%)%%]+")==l then
+				-- print("L",5,r)
 				self:compileExpr("&"..charM,l,name)
 				cmds.args[1]="\1&"..charM
 				mathass=mathass+1
 			elseif l:sub(1,1)=="\"" and l:sub(-1,-1) then
+				-- print("L",6,r)
 				cmds.args[1]=l:sub(2,-2)
 			else
 				self:pushError("Invalid Syntax in logical expression!",l)
@@ -601,18 +635,24 @@ function parseManager:compileLogic(condition,iff,elsee,name)
 			r=r:gsub("%s*\5".."1==0","")
 			charM=string.char(mathass+65)
 			if r=="true" then
+				-- print(1,r)
 				cmds.args[2]=true
 			elseif r=="false" then
+				-- print(2,r)
 				cmds.args[2]=false
 			elseif tonumber(r) then
+				-- print(3,r)
 				cmds.args[2]=tonumber(r)
 			elseif r:match("[%w_]+")==r then
+				-- print(4,r)
 				cmds.args[2]="\1"..r
 			elseif r:match("[_%w%+%-/%*%^%(%)%%]+")==r then
+				-- print(5,r)
 				self:compileExpr("&"..charM,r,name)
 				cmds.args[2]="\1&"..charM
 				mathass=mathass+1
 			elseif r:sub(1,1)=="\"" and r:sub(-1,-1) then
+				-- print(6,r)
 				cmds.args[2]=r:sub(2,-2)
 			else
 				self:pushError("Invalid Syntax in logical expression!",r)
@@ -635,7 +675,11 @@ function parseManager:compileLogic(condition,iff,elsee,name)
 		})
 		FWORi,argsi=iff:match("^([%w_]+)%s*%((.*)%)")
 		FWORe,argse=elsee:match("^([%w_]+)%s*%((.*)%)")
-		self:compileFWOR(FWORi,argsi,name)
+		if FWORi=="SKIP" then
+			self:compileFWOR(FWORi,tostring(tonumber(argsi)+1),name)
+		else
+			self:compileFWOR(FWORi,argsi,name)
+		end
 		self:compileFWOR(FWORe,argse,name)
 	end
 	pieceLogic(condition)
@@ -654,6 +698,11 @@ function parseManager:compile(name,ctype,data)
 		self.methods[name]=function(...)
 			self:Invoke(name,...)
 		end
+		self.__INTERNAL[name] = true
+		-- if not self.variables.__internal then
+			-- self.variables.__internal = {}
+		-- end
+		-- self.variables.__internal[name] = true
 		self.mainENV[name]=self.methods[name]
 		table.insert(self.chunks[name],{
 			Type="funcblock",
@@ -770,12 +819,16 @@ function parseManager:testDict(dict)
 		return
 	end
 end
-function parseManager:dataToValue(name,envF) -- includes \1\
+function parseManager:dataToValue(name,envF,b) -- includes \1\
 	envF=envF or self.currentENV
 	local tab=name
 	if type(name)=="string" then
+		if tonumber(name) then return tonumber(name) end
+		local ret
 		if name:sub(1,1)=="\1" then
 			return self:parseHeader(envF[name:sub(2)])
+		elseif b then
+			return self:parseHeader2(name)
 		else
 			return self:parseHeader(name)
 		end
@@ -784,7 +837,7 @@ function parseManager:dataToValue(name,envF) -- includes \1\
 			return name
 		end
 		if self:testDict(name) then
-			return envF[name[1]:sub(2,-1)][self:dataToValue(name[2])]
+			return envF[name[1]:sub(2,-1)][self:dataToValue(name[2],envF)]
 		else
 			tab={}
 			for i=1,#name do
@@ -819,6 +872,7 @@ function parseManager:Invoke(func,vars,...)
 				self.fArgs={self.lastCall}
 			end
 			push(self.stack,{chunk=self.currentChunk,pos=self.currentChunk.pos,env=self.currentENV,vars=vars})
+			self.currentENV = self:newENV()
 			self.methods.JUMP(self,name)
 			return
 		else
@@ -828,14 +882,132 @@ function parseManager:Invoke(func,vars,...)
 		self:pushError("Attempt to call a non existing function!",name)
 	end
 end
+function round(num, numDecimalPlaces)
+	local mult = 10^(numDecimalPlaces or 0)
+	return math.floor(num * mult + 0.5) / mult
+end
+function parseManager:parseHeader2(data)
+	dat = data:sub(2,-2)
+	if dat:find(":") and not dat:find("%[") then
+		local var,num = dat:match("(.-):(.+)")
+		local num = tonumber(num)
+		if type(self.currentENV[var])=="number" then
+			return round(self.currentENV[var],num)
+		else
+			self:pushError("Attempt to round a non number!")
+		end
+	elseif dat:find("%[") then
+		if not type(self.currentENV[dat])=="table" then
+			self:pushError("Attempt to index a non table object!")
+			return
+		else
+			if dat:find(":") then
+				local var,inwards = dat:match("(.-)%[(.+)%]")
+				local ind = parseManager.split(inwards,":")
+				if #ind==2 then
+					local a,b = tonumber(ind[1]),tonumber(ind[2])
+					if b <= #self.currentENV[var] then
+						local str={}
+						for i=1,b do
+							table.insert(str,self.currentENV[var][i])
+						end
+						return str
+					else
+						self:pushError("Attempt to index a table at a non existing location!")
+					end
+				end
+			else
+				local var,inwards = dat:match("(.-)%[(.+)%]")
+				local num = tonumber(inwards)
+				local ind = self.currentENV[inwards]
+				local sind = self.currentENV[var][inwards]
+				if num then
+					return self.currentENV[var][num]
+				elseif ind then
+					return self.currentENV[var][ind]
+				elseif sind then
+					return sind
+				else
+					self:pushError("Invalid index: "..inwards.."!")
+				end
+			end
+		end
+	else
+		-- regular strings
+		debug("PARSE DATA: "..tostring(self.currentENV[dat]))
+		if self.currentENV[dat]~=nil then
+			if type(self.currentENV[dat])=="table" then
+				local str={}
+				for i=1,#self.currentENV[dat] do
+					table.insert(str,self.currentENV[dat][i])
+				end
+				return str
+			else
+				return self.currentENV[dat]
+			end
+		else
+			return nil
+		end
+	end
+end
 function parseManager:parseHeader(data)
 	if type(data)=="string" then
-		data=data:gsub("%$([%w_:%.%[%]\"']+)%$",function(dat)
+		data=data:gsub("%$([%w_,:%.%[%]%-\"']+)%$",function(dat)
 			debug("PARSE: "..dat)
-			if dat:find(":") then
-				-- for later use
+			if dat:find(":") and not dat:find("%[") then
+				local var,num = dat:match("(.-):(.+)")
+				local num = tonumber(num)
+				if type(self.currentENV[var])=="number" then
+					local str = ""
+					local n = num
+					num = round(self.currentENV[var],num)
+					if n>0 and math.floor(num)==num then -- This only for string version
+						str = "."..string.rep("0",n)
+					elseif n>0 then
+						local s = tostring(num)
+						str = string.rep("0",n-(#s-s:find("%.")))
+					end
+					return num..str
+				else
+					self:pushError("Attempt to round a non number!")
+				end
 			elseif dat:find("%[") then
-				-- for dicts
+				if not type(self.currentENV[dat])=="table" then
+					self:pushError("Attempt to index a non table object!")
+					return
+				else
+					if dat:find(":") then
+						local var,inwards = dat:match("(.-)%[(.+)%]")
+						local ind = parseManager.split(inwards,":")
+						if #ind==2 then
+							local a,b = tonumber(ind[1]),tonumber(ind[2])
+							if b <= #self.currentENV[var] then
+								local str=""
+								for i=1,b do
+									str=str..tostring(self.currentENV[var][i])..","
+								end
+								str=str:sub(1,-2)
+								return "["..str.."]"
+							else
+								self:pushError("Attempt to index a table at a non existing location!")
+							end
+						end
+					else
+						local var,inwards = dat:match("(.-)%[(.+)%]")
+						local num = tonumber(inwards)
+						local ind = self.currentENV[inwards]
+						local sind = self.currentENV[var][inwards]
+						if num then
+							return tostring(self.currentENV[var][num])
+						elseif ind then
+							return tostring(self.currentENV[var][ind])
+						elseif sind then
+							return tostring(sind)
+						else
+							self:pushError("Invalid index: "..inwards.."!")
+						end
+					end
+				end
 			else
 				-- regular strings
 				debug("PARSE DATA: "..tostring(self.currentENV[dat]))
@@ -920,7 +1092,7 @@ function parseManager:next(block,choice)
 		self.currentChunk=chunk
 		return {Type="method"}
 	elseif data.Type=="fwr" then
-		local args=self:dataToValue(data.args)
+		local args=self:dataToValue(data.args,nil,data.Func == "__PUSHPARSE")
 		local rets={}
 		local Func
 		local Ext=false
@@ -932,6 +1104,8 @@ function parseManager:next(block,choice)
 		end
 		if Ext then
 			rets={Func(unpack(args))}
+		elseif self.__INTERNAL[data.Func] then
+			self:Invoke(data.Func,data.vars,unpack(args))
 		else
 			if type(Func)~="function" then
 				rets={self:Invoke(data.Func,data.vars,unpack(args))}

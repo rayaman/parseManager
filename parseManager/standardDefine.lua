@@ -1,4 +1,13 @@
 parseManager:define{
+	__PUSHPARSE = function(self,dat)
+		return dat
+	end,
+	getInput = function(self,prompt)
+		if prompt then
+			io.write(prompt)
+		end
+		return io.read()
+	end,
 	print=function(self,...)
 		print(...)
 	end,
@@ -181,6 +190,9 @@ parseManager:define{
 		else
 			self:pushError("Invalid Arguments!","\2")
 		end
+	end,
+	random = function(self,a,b)
+		return math.random(a,b)
 	end,
 	ceil=function(self,a)
 		if type(self.lastCall)=="number" then

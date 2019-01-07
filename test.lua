@@ -15,11 +15,13 @@ parseManager:define({
 	end
 })
 test=parseManager:load("parsetest3.txt")
-t=test:next("START")
 print(test:dump())
+t=test:next()
 while true do
+	if not t then break end
 	if t.Type=="text" then
-		print(t.text)
+		io.write(t.text)
+		io.read()
 		t=test:next()
 	elseif t.Type=="condition" then
 		t=test:next()
