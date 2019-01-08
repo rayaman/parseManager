@@ -1,5 +1,6 @@
 require("bin")
 parseManager={}
+parseManager.VERSION = 3.4
 parseManager.__index=parseManager
 parseManager.chunks={}
 parseManager.stats={}
@@ -22,8 +23,8 @@ function readonlytable(tab)
 		__metatable=false
 	})
 end
-function debug(...)
-	if parseManager.stats.debugging then
+function parseManager:debug(...)
+	if self.stats.debugging then
 		print("<DEBUG>",...)
 	end
 end
@@ -87,21 +88,42 @@ function parseManager:load(path,c)
 	file.data=file.data:gsub("\2","//")
 	file.data=file.data:gsub("\t","")
 	file:trim()
-	for fn in file:gmatch("LOAD (.-)\n") do
-		debug("L",fn)
-		self:load(fn,c)
-	end
 	for fn in file:gmatch("ENABLE (.-)\n") do
-		debug("E",fn)
-		self.stats[string.lower(fn)]=true
+		self:debug("E",fn)
+		c.stats[string.lower(fn)]=true
+	end
+	for fn in file:gmatch("LOAD (.-)\n") do
+		self:debug("L",fn)
+		c:load(fn,c)
 	end
 	for fn in file:gmatch("DISABLE (.-)\n") do
-		debug("D",fn)
-		self.stats[string.lower(fn)]=false
+		self:debug("D",fn)
+		c.stats[string.lower(fn)]=false
 	end
 	for fn in file:gmatch("ENTRY (.-)\n") do
-		debug("E",fn)
-		self.entry=fn
+		self:debug("E",fn)
+		c.entry=fn
+	end
+	for fn in file:gmatch("USING (.-)\n") do
+		self:debug("U",fn)
+		local m = require("parseManager."..fn)
+		if not m then
+			self:pushError(fn.." was not found as an import that can be used!")
+		else
+			c[fn](c)
+		end
+	end
+	for fn in file:gmatch("VERSION (.-)\n") do
+		self:debug("V",fn)
+		local num = tonumber(fn)
+		local int = tonumber(c.VERSION)
+		if not num then 
+			c:pushWarning("VERSION: "..fn.." is not valid! Assuming "..c.VERSION)
+		else
+			if num>int then
+				c:pushWarning("This script was written for a version that is greater than what this interperter was built for!")
+			end
+		end
 	end
 	for name,data in file:gmatch("%[(.-)[:.-]?%].-{(.-)}") do
 		local ctype="BLOCK"
@@ -264,7 +286,30 @@ function table.print(tbl, indent)
 	end
 end
 function parseManager:pushError(err,sym)
-	error(err.." "..tostring(sym))
+	local lines = bin.load(self.currentChunk.path):lines()
+	local chunk = self.currentChunk[self.currentChunk.pos-1]
+	-- table.print(chunk)
+	for i=1,#lines do
+		if sym then
+			if lines[i]:find(sym) then
+				print(err.." At line: "..i.." "..(lines[i]:gsub("^\t+","")).." ("..tostring(sym)..")")
+				break
+			end
+		elseif chunk.Type=="fwor" or chunk.Type=="fwr" then
+			if lines[i]:match(chunk.Func.."%(") then
+				print(err.." At line: "..i.." "..(lines[i]:gsub("^\t+","")).." ("..tostring(sym)..")")
+				break
+			end
+		else
+			
+		end
+	end
+	io.read()
+	os.exit()
+end
+function parseManager:pushWarning(warn)
+	if not self.stats["warnings"] then return end
+	print("WARNING: "..warn)
 end
 local function pieceList(list,self,name)
 	if #list==0 then
@@ -363,8 +408,8 @@ function parseManager:compileAssign(assignA,assignB,name)
 	for k=1,#listA do
 		local mathTest=false
 		local parsetest=false
-		debug("VAL: "..listB[k])
-		debug("NAME: "..listA[k])
+		self:debug("VAL: "..listB[k])
+		self:debug("NAME: "..listA[k])
 		if tonumber(listB[k]) then
 			assign.vals[#assign.vals+1]=tonumber(listB[k])
 		elseif listB[k]:sub(1,1)=="[" and listB[k]:sub(-1,-1)=="]" then
@@ -404,7 +449,7 @@ function parseManager:compileAssign(assignA,assignB,name)
 		if not mathTest and not parsetest then
 			assign.vars[#assign.vars+1]=pieceAssign(listA[k],self,name)
 		else
-			debug(assignA,assignB,name)
+			self:debug(assignA,assignB,name)
 		end
 	end
 	table.insert(self.chunks[name],assign)
@@ -587,13 +632,6 @@ function parseManager:compileLogic(condition,iff,elsee,name)
 		conds=conds.." or 1==0"
 		conds=conds:gsub(" and ","\4")
 		conds=conds:gsub(" or ","\5")
-		-- conds=conds:gsub("(\".*[\4].*\")",function(a)
-			-- return a:gsub("\4"," and ")
-		-- end)
-		-- print(conds)
-		-- conds=conds:gsub("(\".*[\5].*\")",function(a)
-			-- return a:gsub("\4"," or ")
-		-- end)
 		local count=0
 		local mathass=0
 		_conds=conds:gsub("%s*\5".."1==0","")
@@ -610,24 +648,18 @@ function parseManager:compileLogic(condition,iff,elsee,name)
 			}
 			local l,r=(l:gsub("[\4\5\6]*%(","")),(r:gsub("%)",""))
 			if l=="true" then
-				-- print("L",1,r)
 				cmds.args[1]=true
 			elseif l=="false" then
-				-- print("L",2,r)
 				cmds.args[1]=false
 			elseif tonumber(l) then
-				-- print("L",3,r)
 				cmds.args[1]=tonumber(l)
 			elseif l:match("[%w_]+")==l then
-				-- print("L",4,r)
 				cmds.args[1]="\1"..l
 			elseif l:match("[%._%w%+%-/%*%^%(%)%%]+")==l then
-				-- print("L",5,r)
 				self:compileExpr("&"..charM,l,name)
 				cmds.args[1]="\1&"..charM
 				mathass=mathass+1
 			elseif l:sub(1,1)=="\"" and l:sub(-1,-1) then
-				-- print("L",6,r)
 				cmds.args[1]=l:sub(2,-2)
 			else
 				self:pushError("Invalid Syntax in logical expression!",l)
@@ -635,24 +667,18 @@ function parseManager:compileLogic(condition,iff,elsee,name)
 			r=r:gsub("%s*\5".."1==0","")
 			charM=string.char(mathass+65)
 			if r=="true" then
-				-- print(1,r)
 				cmds.args[2]=true
 			elseif r=="false" then
-				-- print(2,r)
 				cmds.args[2]=false
 			elseif tonumber(r) then
-				-- print(3,r)
 				cmds.args[2]=tonumber(r)
 			elseif r:match("[%w_]+")==r then
-				-- print(4,r)
 				cmds.args[2]="\1"..r
 			elseif r:match("[_%w%+%-/%*%^%(%)%%]+")==r then
-				-- print(5,r)
 				self:compileExpr("&"..charM,r,name)
 				cmds.args[2]="\1&"..charM
 				mathass=mathass+1
 			elseif r:sub(1,1)=="\"" and r:sub(-1,-1) then
-				-- print(6,r)
 				cmds.args[2]=r:sub(2,-2)
 			else
 				self:pushError("Invalid Syntax in logical expression!",r)
@@ -709,7 +735,7 @@ function parseManager:compile(name,ctype,data)
 			args=pieceList(FBArgs,self,name)
 		})
 	end
-	debug("COMPILING Block: "..name)
+	self:debug("COMPILING Block: "..name)
 	local data=bin.new(data):lines()
 	local choiceBlock=false
 	local choice={}
@@ -934,7 +960,7 @@ function parseManager:parseHeader2(data)
 		end
 	else
 		-- regular strings
-		debug("PARSE DATA: "..tostring(self.currentENV[dat]))
+		self:debug("PARSE DATA: "..tostring(self.currentENV[dat]))
 		if self.currentENV[dat]~=nil then
 			if type(self.currentENV[dat])=="table" then
 				local str={}
@@ -953,7 +979,7 @@ end
 function parseManager:parseHeader(data)
 	if type(data)=="string" then
 		data=data:gsub("%$([%w_,:%.%[%]%-\"']+)%$",function(dat)
-			debug("PARSE: "..dat)
+			self:debug("PARSE: "..dat)
 			if dat:find(":") and not dat:find("%[") then
 				local var,num = dat:match("(.-):(.+)")
 				local num = tonumber(num)
@@ -1010,7 +1036,7 @@ function parseManager:parseHeader(data)
 				end
 			else
 				-- regular strings
-				debug("PARSE DATA: "..tostring(self.currentENV[dat]))
+				self:debug("PARSE DATA: "..tostring(self.currentENV[dat]))
 				if self.currentENV[dat]~=nil then
 					if type(self.currentENV[dat])=="table" then
 						local str=""
@@ -1032,8 +1058,8 @@ function parseManager:parseHeader(data)
 end
 function parseManager:pairAssign(vars,vals,envF)
 	for i=1,#vars do
-		debug("ASSIGN NAME: "..tostring(vars[i]))
-		debug("ASSIGN DATA: "..tostring(self:dataToValue(vals[i],envF)))
+		self:debug("ASSIGN NAME: "..tostring(vars[i]))
+		self:debug("ASSIGN DATA: "..tostring(self:dataToValue(vals[i],envF)))
 		if type(vars[i])=="table" then
 			if type(self.currentENV[vars[i][1]])~="table" then
 				self:pushError("Attempt to index a non table object:",vars[i][1].."[\""..vars[i][2].."\"]")
@@ -1069,7 +1095,7 @@ function parseManager:next(block,choice)
 		data=chunk[chunk.pos]
 	end
 	chunk.pos=chunk.pos+1
-	debug("TYPE: "..data.Type)
+	self:debug("TYPE: "..data.Type)
 	if data.Type=="text" then
 		self.lastCall=nil
 		return {Type="text",text=self:parseHeader(data.text)}

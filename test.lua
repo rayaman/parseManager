@@ -3,19 +3,19 @@ local bin = require("bin")
 --~ local multi = require("multi")
 require("parseManager")
 require("bit")
-parseManager:define({
-	rshift=function(self,a,b)
-		return bit.rshift(a,b)
-	end,
-	lshift=function(self,a,b)
-		return bit.lshift(a,b)
-	end,
-	testfunc=function(self,a,b,c)
-		print(tostring(a).." "..tostring(b).." "..tostring(c))
-	end
-})
-test=parseManager:load("parsetest3.txt")
-print(test:dump())
+--~ parseManager:define({
+--~ 	rshift=function(self,a,b)
+--~ 		return bit.rshift(a,b)
+--~ 	end,
+--~ 	lshift=function(self,a,b)
+--~ 		return bit.lshift(a,b)
+--~ 	end,
+--~ 	testfunc=function(self,a,b,c)
+--~ 		print(tostring(a).." "..tostring(b).." "..tostring(c))
+--~ 	end
+--~ })
+test=parseManager:load("textadventure.dms")
+--~ print(test:dump())
 t=test:next()
 while true do
 	if not t then break end

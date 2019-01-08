@@ -1,0 +1,14 @@
+ENTRY MAIN
+VERSION 3.4
+USING extendedDefine
+ENABLE warnings
+// ENABLE debugging
+[MAIN]{
+	::name::
+		name = getInput("Enter your name: ")
+		if name=="" then GOTO("name")|SKIP(0)
+	::good::
+		print("Player Name: $name$")
+		choice = getInput("Is this name correct? (y/n): ")
+		if choice=="y" then SKIP(0)|GOTO("name")
+}

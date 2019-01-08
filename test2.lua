@@ -1,5 +1,16 @@
-function round(num, numDecimalPlaces)
-	local mult = 10^(numDecimalPlaces or 0)
-	return math.floor(num * mult + 0.5) / mult
-end
-print(round(123456.345,2))
+io.flush()
+i = io.input()
+i:seek("cur")
+i:read(2)
+print(i)
+--~ g={}
+--~ while t~="q" do
+--~ 	g[#g+1]=t
+--~ 	io.flush()
+--~ 	t=io.read(1)
+--~ 	io.write("\b")
+--~ end
+--~ print("done")
+--~ io.write("\b")
+--~ io.flush()
+--~ io.read()
