@@ -1,12 +1,12 @@
 require("bin")
 parseManager={}
-parseManager.VERSION = 3.4
+parseManager.VERSION = 4
 parseManager.__index=parseManager
 parseManager.chunks={}
-parseManager.stats={}
+parseManager.stats={warnings = true}
 parseManager.stack={}
 parseManager.cFuncs={}
-parseManager.mainENV={}
+parseManager.mainENV={_VERSION = parseManager.VERSION}
 parseManager.__INTERNAL = {}
 parseManager.currentENV=parseManager.mainENV
 parseManager.entry="START"
@@ -27,6 +27,9 @@ function parseManager:debug(...)
 	if self.stats.debugging then
 		print("<DEBUG>",...)
 	end
+end
+function parseManager:defualtRunner(func)
+	--
 end
 function parseManager:newENV()
 	local env={}
@@ -51,6 +54,23 @@ function factorial(n)
     else
         return n * factorial(n - 1)
     end
+end
+function parseManager:ENABLE(fn)
+	self.stats[string.lower(fn)]=true
+end
+function parseManager:DISABLE(fn)
+	self.stats[string.lower(fn)]=false
+end
+function parseManager:USING(fn,name)
+	local m = require("parseManager."..fn)
+	if not m then
+		self:pushError(fn.." was not found as an import that can be used!")
+	else
+		local ret = self[fn](self)
+		if ret then
+			self.mainENV[name or fn]=ret
+		end
+	end
 end
 function parseManager:load(path,c)
 	local c = c
@@ -88,32 +108,33 @@ function parseManager:load(path,c)
 	file.data=file.data:gsub("\2","//")
 	file.data=file.data:gsub("\t","")
 	file:trim()
-	for fn in file:gmatch("ENABLE (.-)\n") do
+	local header = file:match("(.-)%[")
+	for fn in header:gmatch("ENABLE (.-)\n") do
 		self:debug("E",fn)
-		c.stats[string.lower(fn)]=true
+		c:ENABLE(fn)
 	end
-	for fn in file:gmatch("LOAD (.-)\n") do
+	for fn in header:gmatch("LOAD (.-)\n") do
 		self:debug("L",fn)
 		c:load(fn,c)
 	end
-	for fn in file:gmatch("DISABLE (.-)\n") do
+	for fn in header:gmatch("DISABLE (.-)\n") do
 		self:debug("D",fn)
-		c.stats[string.lower(fn)]=false
+		c:DISABLE(fn)
 	end
-	for fn in file:gmatch("ENTRY (.-)\n") do
+	for fn in header:gmatch("ENTRY (.-)\n") do
 		self:debug("E",fn)
 		c.entry=fn
 	end
-	for fn in file:gmatch("USING (.-)\n") do
+	for fn in header:gmatch("USING (.-)\n") do
 		self:debug("U",fn)
-		local m = require("parseManager."..fn)
-		if not m then
-			self:pushError(fn.." was not found as an import that can be used!")
+		if fn:find("as") then
+			local use,name = fn:match("(.-) as (.+)")
+			c:USING(use,name)
 		else
-			c[fn](c)
+			c:USING(fn)
 		end
 	end
-	for fn in file:gmatch("VERSION (.-)\n") do
+	for fn in header:gmatch("VERSION (.-)\n") do
 		self:debug("V",fn)
 		local num = tonumber(fn)
 		local int = tonumber(c.VERSION)
@@ -121,7 +142,7 @@ function parseManager:load(path,c)
 			c:pushWarning("VERSION: "..fn.." is not valid! Assuming "..c.VERSION)
 		else
 			if num>int then
-				c:pushWarning("This script was written for a version that is greater than what this interperter was built for!")
+				c:pushWarning("This script was written for a later version! Some features may not work properly!")
 			end
 		end
 	end
@@ -266,6 +287,8 @@ function parseManager:dump()
 				str=str.."\tDISP_MSG \""..v[k].text.."\"\n"
 			elseif v[k].Type=="assign" then
 				str=str.."\t"..concat(v[k].vars,", ").." <- "..concat(v[k].vals,", ").."\n"
+			elseif v[k].Type=="toggle" then
+				str = str.."\t"..v[k].Flags.." "..v[k].Target.."\n"
 			else
 				str=str.."\tUnknown Code!: "..tostring(v[k].data).."\n"
 			end
@@ -286,13 +309,14 @@ function table.print(tbl, indent)
 	end
 end
 function parseManager:pushError(err,sym)
+	if not self.currentChunk then print("ERROR: ",err,sym) os.exit() end
 	local lines = bin.load(self.currentChunk.path):lines()
 	local chunk = self.currentChunk[self.currentChunk.pos-1]
 	-- table.print(chunk)
 	for i=1,#lines do
 		if sym then
 			if lines[i]:find(sym) then
-				print(err.." At line: "..i.." "..(lines[i]:gsub("^\t+","")).." ("..tostring(sym)..")")
+				print(err.." <"..sym.."> At line: "..i.." "..(lines[i]:gsub("^\t+","")))
 				break
 			end
 		elseif chunk.Type=="fwor" or chunk.Type=="fwr" then
@@ -301,10 +325,10 @@ function parseManager:pushError(err,sym)
 				break
 			end
 		else
-			
+			print(err.." Line: ?")
+			break
 		end
 	end
-	io.read()
 	os.exit()
 end
 function parseManager:pushWarning(warn)
@@ -318,6 +342,7 @@ local function pieceList(list,self,name)
 	local list=parseManager.split(list)
 	local L={}
 	local mathass=1
+	local cc = 0
 	for i=1,#list do
 		if list[i]:match("[%w_]-%[.-%]") and list[i]:sub(1,1)~='"' then
 			local dict,sym=list[i]:match("([%w_]-)%[(.-)%]")
@@ -325,6 +350,11 @@ local function pieceList(list,self,name)
 				L[#L+1]={"\1"..dict,tonumber(sym),IsALookup=true}
 			elseif sym:sub(1,1)=="\"" and sym:sub(-1,-1)=="\"" then
 				L[#L+1]={"\1"..dict,sym:sub(2,-2),IsALookup=true}
+			else
+				local sym = "`"..string.char(65+cc)
+				self:compileFWR("__PUSHPARSE",sym,'"$'..list[i]..'$"',name)
+				cc=cc+1
+				L[#L+1]="\1"..sym
 			end
 		elseif list[i]:sub(1,1)=="\"" and list[i]:sub(-1,-1)=="\"" then
 			L[#L+1]=list[i]:sub(2,-2)
@@ -360,18 +390,18 @@ local function pieceAssign(a,self,name)
 			var={dict,ind:sub(2,-2)}
 		elseif tonumber(ind) then
 			var={dict,tonumber(ind)}
-		elseif ind:match("[%w_]+")==ind then
+		elseif ind:match("[%w_`]+")==ind then
 			var={dict,"\1"..ind}
-		elseif ind:match("[_%w%+%-/%*%^%(%)%%]+") then
+		elseif ind:match("[_%w%+%-`/%*%^%(%)%%]+") then
 			local sym="@A"
 			self:compileExpr(sym,ind,name)
 			var={dict,"\1"..sym}
 		else
 			self:pushError("Invalid way to index a dictonary/array!",ind)
 		end
-	elseif a:match("[%$%w_]+")==a then
+	elseif a:match("[%$%w_`]+")==a then
 		var="\1"..a
-	elseif a:match("[%$%w_]-%..-") then
+	elseif a:match("[%$%w_`]-%..-") then
 		local dict,sym=a:match("([%w_]-)%.(.+)")
 		var={dict,sym,IsALookup=true}
 	elseif a:find(",") then
@@ -412,6 +442,10 @@ function parseManager:compileAssign(assignA,assignB,name)
 		self:debug("NAME: "..listA[k])
 		if tonumber(listB[k]) then
 			assign.vals[#assign.vals+1]=tonumber(listB[k])
+		elseif listB[k]:match("%w-%.%w+")==listB[k] then
+			local dict,sym=listB[k]:match("(%w-)%.(%w+)")
+			print(dict,sym)
+			assign.vals[#assign.vals+1]={"\1"..dict,sym,IsALookup=true}
 		elseif listB[k]:sub(1,1)=="[" and listB[k]:sub(-1,-1)=="]" then
 			if listB[k]:match("%[%]") then
 				assign.vals[#assign.vals+1]={}
@@ -439,7 +473,7 @@ function parseManager:compileAssign(assignA,assignB,name)
 			assign.vals[#assign.vals+1]=false
 		elseif listB[k]:match("[%w_]+")==listB[k] then
 			assign.vals[#assign.vals+1]="\1"..listB[k]
-		elseif listB[k]:match("[_%$%w%+%-/%*%^%(%)%.%%%s]+")==listB[k] then
+		elseif listB[k]:match("[_%$%w%+%-/%*%^%(%)%.%%%s]+")==listB[k] and not(listB[k]:match("%w-%.%w+")==listB[k]) then
 			mathTest=true
 			workit = self:compileFuncInExpr(listB[k],name)
 			self:compileExpr(listA[k],workit,name)
@@ -794,39 +828,64 @@ function parseManager:compile(name,ctype,data)
 				if not args2 then
 					FWOR2,args2=data[i]:match("^([%.:%w_]+)%s*%((.*)%)$")
 				end
+				local flags,target = data[i]:match("(%u+)%s([%w%s]+)")
 				------
 				if line then
+					-- print(1)
 					self:compileLine(line,name)
 				elseif condition then
+					-- print(2)
 					self:compileCondition(condition,iff,elsee,name)
 				elseif FWR then
+					-- print(3)
 					self:compileFWR(FWR,vars,args,name)
 				elseif FWOR then
+					-- print(4)
 					self:compileFWOR(FWOR,args,name)
 				elseif FWR2 then
+					-- print(5)
 					local dict,dot,sym=FWR2:match("([%w_]-)([%.:])(.+)")
 					if dot==":" then
 						args2=dict..","..args2
+						if args2:sub(-1,-1)=="," then
+							args2 = args2:sub(1,-2)
+						end
 					end
 					self:compileFWR({dict,sym,IsALookup=true},vars2,args2,name)
 				elseif FWOR2 then
+					-- print(6)
 					local dict,dot,sym=FWOR2:match("([%w_]-)([%.:])(.+)")
 					if dot==":" then
 						args2=dict..","..args2
+						if args2:sub(-1,-1)=="," then
+							args2 = args2:sub(1,-2)
+						end
 					end
 					self:compileFWOR({dict,sym,IsALookup=true},args2,name)
 				elseif assignA then
+					-- print(7)
 					self:compileAssign(assignA,assignB,name)
 				elseif label then
+					-- print(8)
 					self:compileLabel(label,name)
 				elseif Return and isFBlock then
+					-- print(9)
 					table.insert(self.chunks[name],{
 						Type="return",
 						RETArgs=pieceList(RETArgs,self,name)
 					})
 				elseif Return and not(isFBlock) then
+					-- print(10)
 					self:pushError("Attempt to call return in a non function block!",data[i])
+				elseif flags and target then
+					-- print(11)
+					table.insert(self.chunks[name],{
+						Type = "toggle",
+						Flags = flags,
+						Target = target
+					})
 				else
+					-- print(12)
 					table.insert(self.chunks[name],{
 						Type="customdata",
 						data=data[i],
@@ -1149,6 +1208,8 @@ function parseManager:next(block,choice)
 		local args=self:dataToValue(data.args)
 		local Func
 		local Ext=false
+		-- table.print(data.args)
+		table.print(args)
 		if type(data.Func)=="table" then
 			Ext=true
 			Func=self.currentENV[data.Func[1]][data.Func[2]]
@@ -1178,6 +1239,23 @@ function parseManager:next(block,choice)
 		self:pairAssign(data.vars,data.vals)
 		self.lastCall=nil
 		return {Type="assign"}
+	elseif data.Type=="toggle" then
+		local flags,target = data.Flags,data.Target
+		if flags == "USING" then
+			if target:find("as") then
+				local use,name = target:match("(.-) as (.+)")
+				self:USING(use,name)
+			else
+				self:USING(target)
+			end
+		elseif flags == "ENABLE" then
+			self:ENABLE(target)
+		elseif flags == "DISABLE" then
+			self:DISABLE(target)
+		else
+			self:pushWarning("Invalid flag: "..flag.."!")
+		end
+		return {Type="method"} -- you cannot interact with the interpreter yet!
 	else
 		self.lastCall=nil
 		return {Type="Custom Syntax"}

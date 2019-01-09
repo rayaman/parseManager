@@ -1,3 +1,4 @@
+local clock = os.clock
 parseManager:define{
 	__PUSHPARSE = function(self,dat)
 		return dat
@@ -16,6 +17,10 @@ parseManager:define{
 	end,
 	QUIT=function()
 		os.exit()
+	end,
+	sleep=function(self,n)
+		local t0 = clock()
+		while clock() - t0 <= n do end
 	end,
 	JUMP=function(self,block)
 		if self.chunks[block] then

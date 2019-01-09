@@ -1,14 +1,30 @@
 ENTRY MAIN
-VERSION 3.4
-USING extendedDefine
-ENABLE warnings
-// ENABLE debugging
 [MAIN]{
-	::name::
-		name = getInput("Enter your name: ")
-		if name=="" then GOTO("name")|SKIP(0)
-	::good::
-		print("Player Name: $name$")
-		choice = getInput("Is this name correct? (y/n): ")
-		if choice=="y" then SKIP(0)|GOTO("name")
+	//Check for version compatibility
+	if _VERSION>=3.4 then GOTO("define")|GOTO("nodefine")
+	::nodefine::
+		print("We cannot use the filesystem or the extendedDefine module! Exiting program!")
+		QUIT()
+	::define::
+		// USING filesystem as bin
+		// USING extendedDefine
+		// setVar("name","Thread Test")
+		// newThread("LoopTest")
+		// in = getInput("Enter Something: ")
+		// file = bin.new(in)
+		// file:tofile("WeCanWriteEm.txt")
+		"Let's test simple object creation"
+		obj = []
+		obj.test = say
+		obj.test("Hello!")
+		"Hmm..."
 }
+// [LoopTest]{
+	// a=0
+	// name = getVar("name")
+	// ::loop::
+		// a=a+1
+		// test("$name$ $a$")
+		// sleep(1)
+		// GOTO("loop")
+// }

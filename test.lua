@@ -15,7 +15,7 @@ require("bit")
 --~ 	end
 --~ })
 test=parseManager:load("textadventure.dms")
---~ print(test:dump())
+print(test:dump())
 t=test:next()
 while true do
 	if not t then break end
@@ -51,3 +51,6 @@ while true do
 		t=test:next()
 	end
 end
+--["vars"]={"\1%"..string.char(mathAss+64)}
+--cmds[#cmds+1]={Func="MOD",args={l,(r or "")}}
+--
