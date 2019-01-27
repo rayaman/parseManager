@@ -14,6 +14,52 @@ parseManager.methods={}
 parseManager.lastCall=nil
 parseManager.currentHandle=nil
 parseManager.currentHandleName=nil
+parseManager.state = {}
+parseManager.active = true
+function parseManager:mainRunner(block)
+	local t = self:next(block)
+	if not t then return nil end
+	if t.Type=="text" then
+		io.write(t.text)
+		io.read()
+		t=self:next()
+	elseif t.Type=="condition" then
+		t=self:next()
+	elseif t.Type=="assignment" then
+		t=self:next()
+	elseif t.Type=="label" then
+		t=self:next()
+	elseif t.Type=="method" then
+		t=self:next()
+	elseif t.Type=="choice" then
+		print(t.text)
+		for i=1,#t.choices do
+			print(i..". "..t.choices[i])
+		end
+		io.write("Choose#: ")
+		cm=tonumber(io.read())
+		t=self:next(nil,cm,nil,t)
+	elseif t.Type=="end" then
+		if t.text=="leaking" then -- go directly to the block right under the current block if it exists
+			t=self:next()
+		else
+			os.exit()
+		end
+	elseif t.Type=="error" then
+		error(t.text)
+	else
+		t=self:next()
+	end
+	-- if true return t, else return false
+	return self.active and t
+end
+function parseManager:run(block)
+	local dat = self:mainRunner(block)
+	while dat do
+		dat = self:mainRunner()
+	end
+	-- print("done")
+end
 function readonlytable(tab)
 	return setmetatable({},{
 		__index=tab,
@@ -27,9 +73,6 @@ function parseManager:debug(...)
 	if self.stats.debugging then
 		print("<DEBUG>",...)
 	end
-end
-function parseManager:defualtRunner(func)
-	--
 end
 function parseManager:newENV()
 	local env={}
@@ -1208,8 +1251,6 @@ function parseManager:next(block,choice)
 		local args=self:dataToValue(data.args)
 		local Func
 		local Ext=false
-		-- table.print(data.args)
-		table.print(args)
 		if type(data.Func)=="table" then
 			Ext=true
 			Func=self.currentENV[data.Func[1]][data.Func[2]]

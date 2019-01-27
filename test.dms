@@ -1,0 +1,14 @@
+ENTRY TEST
+[TEST]{
+	newLightThread("TEST2")
+	::loop::
+		print("Hello!")
+		sleep(.5)
+		GOTO("loop")
+}
+[TEST2]{
+	::loop::
+		print("Hi!")
+		sleep(1)
+		GOTO("loop")
+}
