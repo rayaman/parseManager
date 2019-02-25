@@ -1,0 +1,23 @@
+ENTRY INIT
+USING filesystem as bin
+[INIT]{
+	size = bin.fileExist("data.dat")
+	if size!=True then JUMP("CREATEDATA")|JUMP("HASDATA")	
+}
+[CREATEDATA]{
+	"We have no data! Let's create it!"
+	name = getInput("Please Enter your name: ")
+	file = bin.new()
+	file:addBlock(name,16) //Name
+	file:addBlock(100,4) //Money
+	file:addBlock("START",16) //Current Label
+	file:tofile("data.dat")
+	JUMP("HASDATA")
+}
+[HASDATA]{
+	file = bin.load("data.dat")
+	name = file:getBlock("s",16)
+	money = file:getBlock("n",4)
+	label = file:getBlock("s",16)
+	"Name: $name$ Money: $money$ Label: $label$"
+}

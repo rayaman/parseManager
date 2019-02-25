@@ -13,7 +13,8 @@ ENTRY MAIN
 		in = getInput("Enter Something: ")
 		file = bin.new(in)
 		file:tofile("WeCanWriteEm.txt")
-		test(1,2)
+		tt = test(1,2)
+		"Test: $tt$"
 		"We are here now"
 		"why no work"
 		"?"
