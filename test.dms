@@ -1,6 +1,7 @@
 ENTRY TEST
+USING extendedDefine
 [TEST]{
-	newLightThread("TEST2")
+	newThread("TEST2")
 	::loop::
 		print("Hello!")
 		sleep(.5)
