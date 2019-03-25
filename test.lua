@@ -2,7 +2,7 @@ package.path="?/init.lua;lua/?/init.lua;lua/?.lua;"..package.path
 local bin = require("bin")
 local multi = require("multi")
 require("parseManager")
-test=parseManager:load("StoryTest/init.dms")
+test=parseManager:load("test.dms")--load("StoryTest/init.dms")
 print(test:dump())
 --Code would happen here anyway
 t=test:next()
