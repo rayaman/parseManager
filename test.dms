@@ -5,7 +5,7 @@ VERSION 4.1 //The version that nested functions was introduced
 	// New feature functions inside of functions
 	a = hmm(5,1)
 	"a = $a$"
-	b = hmm(hmm(6,hmm(1,1)),hmm(5,3))
+	b = hmm(hmm(6,hmm(1,1)),5 + sqrt(100))
 	"b = $b$"
 }
 [hmm:function(a,b)]{

@@ -394,6 +394,7 @@ local function pieceList(list,self,name)
 	local cc = 0
 	for i=1,#list do
 		if list[i]:match("[%w_]-%[.-%]") and list[i]:sub(1,1)~='"' then
+			print("dict")
 			local dict,sym=list[i]:match("([%w_]-)%[(.-)%]")
 			if tonumber(sym) then
 				L[#L+1]={"\1"..dict,tonumber(sym),IsALookup=true}
@@ -405,32 +406,41 @@ local function pieceList(list,self,name)
 				cc=cc+1
 				L[#L+1]="\1"..sym
 			end
+		elseif list[i]:sub(1,1)=="\"" and list[i]:sub(-1,-1)=="\"" then
+			print("string")
+			L[#L+1]=list[i]:sub(2,-2)
+		elseif list[i]:sub(1,1)=="[" and list[i]:sub(-1,-1)=="]" then
+			print("index")
+			L[#L+1]=pieceList(list[i]:sub(2,-2),self,name)
+		elseif tonumber(list[i]) then
+			print("number")
+			L[#L+1]=tonumber(list[i])
+		elseif list[i]=="true" then
+			print("true")
+			L[#L+1]=true
+		elseif list[i]=="false" then
+			print("false")
+			L[#L+1]=false
+		elseif list[i]:match("[%w_]+")==list[i] then
+			print("var?")
+			L[#L+1]="\1"..list[i]
+		elseif list[i]:match("[%w_]-%..-") then
+			print("dict?")
+			local dict,sym=list[i]:match("([%w_]-)%.(.+)")
+			L[#L+1]={"\1"..dict,sym,IsALookup=true}
+		elseif list[i]:match("[_%w%+%-/%*%^%(%)%%]+") and list[i]:match("[%+%-/%*%^%%]+") then
+			print("math")
+			local char="$"..string.char(mathass+64)
+			self:compileExpr(char,list[i],name)
+			mathass=mathass+1
+			L[#L+1]="\1"..char
 		elseif list[i]:match("^([%w_]+)%s*%((.*)%)$") then
+			print("func")
 			local func,args = list[i]:match("^([%w_]+)%s*%((.*)%)$")
 			local sym = "`"..string.char(65+cc)
 			self:compileFWR(func,sym,args,name)
 			cc=cc+1
 			L[#L+1]="\1"..sym
-		elseif list[i]:sub(1,1)=="\"" and list[i]:sub(-1,-1)=="\"" then
-			L[#L+1]=list[i]:sub(2,-2)
-		elseif list[i]:sub(1,1)=="[" and list[i]:sub(-1,-1)=="]" then
-			L[#L+1]=pieceList(list[i]:sub(2,-2),self,name)
-		elseif tonumber(list[i]) then
-			L[#L+1]=tonumber(list[i])
-		elseif list[i]:match("[%w_]-%..-") then
-			local dict,sym=list[i]:match("([%w_]-)%.(.+)")
-			L[#L+1]={"\1"..dict,sym,IsALookup=true}
-		elseif list[i]=="true" then
-			L[#L+1]=true
-		elseif list[i]=="false" then
-			L[#L+1]=false
-		elseif list[i]:match("[%w_]+")==list[i] then
-			L[#L+1]="\1"..list[i]
-		elseif list[i]:match("[_%w%+%-/%*%^%(%)%%]+") then
-			local char="$"..string.char(mathass+64)
-			self:compileExpr(char,list[i],name)
-			mathass=mathass+1
-			L[#L+1]="\1"..char
 		else
 			self:pushError("Invalid Syntax!",list[i])
 		end
@@ -625,6 +635,7 @@ function parseManager:compileExpr(eql,expr,name)
 		local count=0
 		for i,v in pairs(self.methods) do
 			expr=expr:gsub(i.."(%b())",function(a)
+				print("MET:",a)
 				a=a:sub(2,-2)
 				if a:sub(1,1)=="-" then
 					a="0"..a
@@ -635,6 +646,7 @@ function parseManager:compileExpr(eql,expr,name)
 		end
 		for i,v in pairs(self.cFuncs) do
 			expr=expr:gsub(i.."(%b())",function(a)
+				print("MET:",a)
 				a=a:sub(2,-2)
 				if a:sub(1,1)=="-" then
 					a="0"..a
@@ -661,7 +673,8 @@ function parseManager:compileExpr(eql,expr,name)
 			return expr
 		end
 	end
-	if expr:match("[!%$%s&_%w%+%-/%*%.%^%(%)%%]+")==expr then
+	if expr:match("[!%$%s&_%w%+%-,/%*%.%^%(%)%%]+")==expr then
+		print(expr)
 		expr = expr:gsub("%s","")
 		parseManager:pieceExpr(expr)
 		cmds[#cmds]["vars"]={"\1"..eql}
