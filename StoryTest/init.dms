@@ -1,7 +1,7 @@
 ENTRY INIT
 USING filesystem as bin
 [INIT]{
-	size = bin.fileExist("data.dat")
+	size = bin.fileExist("StoryTest/data.dat")
 	if size!=True then JUMP("CREATEDATA")|JUMP("HASDATA")	
 }
 [CREATEDATA]{
@@ -11,11 +11,11 @@ USING filesystem as bin
 	file:addBlock(name,16) //Name
 	file:addBlock(100,4) //Money
 	file:addBlock("START",16) //Current Label
-	file:tofile("data.dat")
+	file:tofile("StoryTest/data.dat")
 	JUMP("HASDATA")
 }
 [HASDATA]{
-	file = bin.load("data.dat")
+	file = bin.load("StoryTest/data.dat")
 	name = file:getBlock("s",16)
 	money = file:getBlock("n",4)
 	label = file:getBlock("s",16)
