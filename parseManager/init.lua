@@ -1,6 +1,6 @@
 require("bin")
 parseManager={}
-parseManager.VERSION = 4
+parseManager.VERSION = 4.1
 parseManager.__index=parseManager
 parseManager.chunks={}
 parseManager.stats={warnings = true}
@@ -243,6 +243,9 @@ function parseManager.split(s,pat)
 					res[#res + 1] = elem
 					elem = ''
 					state = 3 -- skip over the next space if present
+				elseif c == "(" then
+					state = 1
+					elem = elem .. '('
 				else
 					elem = elem .. c
 				end
@@ -254,6 +257,9 @@ function parseManager.split(s,pat)
 			elseif c=="]" then
 				state = 0
 				elem = elem .. ']'
+			elseif c==")" then
+				state = 0
+				elem = elem .. ')'
 			elseif c == '\\' then
 				state = 2
 			else
@@ -399,6 +405,12 @@ local function pieceList(list,self,name)
 				cc=cc+1
 				L[#L+1]="\1"..sym
 			end
+		elseif list[i]:match("^([%w_]+)%s*%((.*)%)$") then
+			local func,args = list[i]:match("^([%w_]+)%s*%((.*)%)$")
+			local sym = "`"..string.char(65+cc)
+			self:compileFWR(func,sym,args,name)
+			cc=cc+1
+			L[#L+1]="\1"..sym
 		elseif list[i]:sub(1,1)=="\"" and list[i]:sub(-1,-1)=="\"" then
 			L[#L+1]=list[i]:sub(2,-2)
 		elseif list[i]:sub(1,1)=="[" and list[i]:sub(-1,-1)=="]" then
@@ -487,7 +499,6 @@ function parseManager:compileAssign(assignA,assignB,name)
 			assign.vals[#assign.vals+1]=tonumber(listB[k])
 		elseif listB[k]:match("%w-%.%w+")==listB[k] then
 			local dict,sym=listB[k]:match("(%w-)%.(%w+)")
-			print(dict,sym)
 			assign.vals[#assign.vals+1]={"\1"..dict,sym,IsALookup=true}
 		elseif listB[k]:sub(1,1)=="[" and listB[k]:sub(-1,-1)=="]" then
 			if listB[k]:match("%[%]") then

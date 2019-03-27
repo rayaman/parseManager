@@ -1,15 +1,26 @@
-ENTRY TEST
+ENTRY MAIN
 USING extendedDefine
-[TEST]{
-	newThread("TEST2")
-	::loop::
-		print("Hello!")
-		sleep(.5)
-		GOTO("loop")
+VERSION 4.1 //The version that nested functions was introduced
+[MAIN]{
+	// New feature functions inside of functions
+	a = hmm(5,1)
+	"a = $a$"
+	b = hmm(hmm(6,hmm(1,1)),hmm(5,3))
+	"b = $b$"
 }
-[TEST2]{
-	::loop::
-		print("Hi!")
-		sleep(1)
-		GOTO("loop")
+[hmm:function(a,b)]{
+	return a+b
 }
+// [TEST]{
+	// newThread("TEST2")
+	// ::loop::
+		// print("Hello!")
+		// sleep(.5)
+		// GOTO("loop")
+// }
+// [TEST2]{
+	// ::loop::
+		// print("Hi!")
+		// sleep(1)
+		// GOTO("loop")
+// }
