@@ -401,7 +401,7 @@ local function pieceList(list,self,name)
 	local L={}
 	for i=1,#list do
 		if list[i]:match("[%w_]-%[.-%]") and list[i]:sub(1,1)~='"' then
-			print("dict")
+			-- print("dict")
 			local dict,sym=list[i]:match("([%w_]-)%[(.-)%]")
 			if tonumber(sym) then
 				L[#L+1]={"\1"..dict,tonumber(sym),IsALookup=true}
@@ -414,35 +414,35 @@ local function pieceList(list,self,name)
 				L[#L+1]="\1"..sym
 			end
 		elseif list[i]:sub(1,1)=="\"" and list[i]:sub(-1,-1)=="\"" then
-			print("string")
+			-- print("string")
 			L[#L+1]=list[i]:sub(2,-2)
 		elseif list[i]:sub(1,1)=="[" and list[i]:sub(-1,-1)=="]" then
-			print("index")
+			-- print("index")
 			L[#L+1]=pieceList(list[i]:sub(2,-2),self,name)
 		elseif tonumber(list[i]) then
-			print("number")
+			-- print("number")
 			L[#L+1]=tonumber(list[i])
 		elseif list[i]=="true" then
-			print("true")
+			-- print("true")
 			L[#L+1]=true
 		elseif list[i]=="false" then
-			print("false")
+			-- print("false")
 			L[#L+1]=false
 		elseif list[i]:match("[%w_]+")==list[i] then
-			print("var?")
+			-- print("var?")
 			L[#L+1]="\1"..list[i]
 		elseif list[i]:match("[%w_]-%..-") then
-			print("dict?")
+			-- print("dict?")
 			local dict,sym=list[i]:match("([%w_]-)%.(.+)")
 			L[#L+1]={"\1"..dict,sym,IsALookup=true}
 		elseif list[i]:match("^([%w_]+)%s*%((.*)%)$") then
-			print("func")
+			-- print("func")
 			local func,args = list[i]:match("^([%w_]+)%s*%((.*)%)$")
 			local sym = getSymbol("`")
 			self:compileFWR(func,sym,args,name)
 			L[#L+1]="\1"..sym
 		elseif list[i]:match("[_%w%+%-/%*%^%(%)%%]+") and list[i]:match("[%+%-/%*%^%%]+") then
-			print("math")
+			-- print("math")
 			local char=getSymbol("$")
 			self:compileExpr(char,list[i],name)
 			L[#L+1]="\1"..char
@@ -636,7 +636,6 @@ function parseManager:compileExpr(eql,expr,name)
 	end
 	function parseManager:pieceExpr(expr)
 		local count=0
-		print("EXPR-A:",expr)
 		for i,v in pairs(self.methods) do
 			expr=expr:gsub(i.."(%b())",function(a)
 				a=a:sub(2,-2)
@@ -647,11 +646,8 @@ function parseManager:compileExpr(eql,expr,name)
 				return "@"
 			end)
 		end
-		print("EXPR-B:",expr)
 		for i,v in pairs(self.cFuncs) do
-			print("!",i,v,expr)
 			expr=expr:gsub(i.."(%b())",function(a)
-				print("MET:",i..a)
 				a=a:sub(2,-2)
 				if a:sub(1,1)=="-" then
 					a="0"..a
@@ -661,7 +657,7 @@ function parseManager:compileExpr(eql,expr,name)
 			end)
 		end--self.cFuncs
 		expr=expr:gsub("%b()",function(a)
-			print(">",a)
+			-- print(">",a)
 			return self:pieceExpr(a:sub(2,-2))
 		end)
 		local loop
@@ -680,7 +676,7 @@ function parseManager:compileExpr(eql,expr,name)
 		end
 	end
 	if expr:match("[!%$%s&_%w%+%-,/%*%.%^%(%)%%]+")==expr then
-		print(expr)
+		-- print(expr)
 		expr = expr:gsub("%s","")
 		parseManager:pieceExpr(expr)
 		cmds[#cmds]["vars"]={"\1"..eql}
