@@ -287,6 +287,15 @@ function deepcopy(orig)
     end
     return copy
 end
+local universalSymbol = {}
+local function getSymbol(s)
+	if not universalSymbol[(s or "$")] then
+		universalSymbol[(s or "$")] = 0
+	end
+	local char=(s or "$")..string.char((universalSymbol[(s or "$")]%26)+65)
+	universalSymbol[(s or "$")] = universalSymbol[(s or "$")] + 1
+	return char
+end
 local function concat(tab,sep)
 	if not tab then return "" end
 	for g=1,#tab do
@@ -390,8 +399,6 @@ local function pieceList(list,self,name)
 	end
 	local list=parseManager.split(list)
 	local L={}
-	local mathass=1
-	local cc = 0
 	for i=1,#list do
 		if list[i]:match("[%w_]-%[.-%]") and list[i]:sub(1,1)~='"' then
 			print("dict")
@@ -401,7 +408,7 @@ local function pieceList(list,self,name)
 			elseif sym:sub(1,1)=="\"" and sym:sub(-1,-1)=="\"" then
 				L[#L+1]={"\1"..dict,sym:sub(2,-2),IsALookup=true}
 			else
-				local sym = "`"..string.char(65+cc)
+				local sym = getSymbol("`")
 				self:compileFWR("__PUSHPARSE",sym,'"$'..list[i]..'$"',name)
 				cc=cc+1
 				L[#L+1]="\1"..sym
@@ -428,19 +435,17 @@ local function pieceList(list,self,name)
 			print("dict?")
 			local dict,sym=list[i]:match("([%w_]-)%.(.+)")
 			L[#L+1]={"\1"..dict,sym,IsALookup=true}
-		elseif list[i]:match("[_%w%+%-/%*%^%(%)%%]+") and list[i]:match("[%+%-/%*%^%%]+") then
-			print("math")
-			local char="$"..string.char(mathass+64)
-			self:compileExpr(char,list[i],name)
-			mathass=mathass+1
-			L[#L+1]="\1"..char
 		elseif list[i]:match("^([%w_]+)%s*%((.*)%)$") then
 			print("func")
 			local func,args = list[i]:match("^([%w_]+)%s*%((.*)%)$")
-			local sym = "`"..string.char(65+cc)
+			local sym = getSymbol("`")
 			self:compileFWR(func,sym,args,name)
-			cc=cc+1
 			L[#L+1]="\1"..sym
+		elseif list[i]:match("[_%w%+%-/%*%^%(%)%%]+") and list[i]:match("[%+%-/%*%^%%]+") then
+			print("math")
+			local char=getSymbol("$")
+			self:compileExpr(char,list[i],name)
+			L[#L+1]="\1"..char
 		else
 			self:pushError("Invalid Syntax!",list[i])
 		end
@@ -481,12 +486,10 @@ local function pieceAssign(a,self,name)
 	return var
 end
 function parseManager:compileFuncInExpr(list,name)
-	local c = 65
 	str = list:gsub("([%S]+)%s*%((.-)%)",function(a,b)
 		if a and b then
-			local d = "$"..string.char(c)
+			local d = getSymbol("`")
 			self:compileFWR(a,d,b,name)
-			c=c+1
 			return d
 		end
 	end)
@@ -633,9 +636,9 @@ function parseManager:compileExpr(eql,expr,name)
 	end
 	function parseManager:pieceExpr(expr)
 		local count=0
+		print("EXPR-A:",expr)
 		for i,v in pairs(self.methods) do
 			expr=expr:gsub(i.."(%b())",function(a)
-				print("MET:",a)
 				a=a:sub(2,-2)
 				if a:sub(1,1)=="-" then
 					a="0"..a
@@ -644,9 +647,11 @@ function parseManager:compileExpr(eql,expr,name)
 				return "@"
 			end)
 		end
+		print("EXPR-B:",expr)
 		for i,v in pairs(self.cFuncs) do
+			print("!",i,v,expr)
 			expr=expr:gsub(i.."(%b())",function(a)
-				print("MET:",a)
+				print("MET:",i..a)
 				a=a:sub(2,-2)
 				if a:sub(1,1)=="-" then
 					a="0"..a
@@ -656,6 +661,7 @@ function parseManager:compileExpr(eql,expr,name)
 			end)
 		end--self.cFuncs
 		expr=expr:gsub("%b()",function(a)
+			print(">",a)
 			return self:pieceExpr(a:sub(2,-2))
 		end)
 		local loop
