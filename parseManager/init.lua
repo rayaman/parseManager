@@ -1,6 +1,6 @@
 require("bin")
 parseManager={}
-parseManager.VERSION = 4.1
+parseManager.VERSION = 5
 parseManager.__index=parseManager
 parseManager.chunks={}
 parseManager.stats={warnings = true}
@@ -58,7 +58,6 @@ function parseManager:run(block)
 	while dat do
 		dat = self:mainRunner()
 	end
-	-- print("done")
 end
 function readonlytable(tab)
 	return setmetatable({},{
@@ -204,11 +203,21 @@ function parseManager:load(path,c)
 		parseManager.currentHandleName=name
 		parseManager.currentHandle=c
 		c:compile(name,ctype,data)
+		c.runtime = true
 	end
 	--c.chunks=readonlytable(c.chunks)
 	c.mainENV["False"]=false
 	c.mainENV["True"]=true
 	return c
+end
+function push(s,n)
+	table.insert(s,n)
+end
+function pop(s)
+	return table.remove(s)
+end
+function peek(s)
+	return s[#s]
 end
 function parseManager:extractState()
 	return {name=self.currentChunk.name,pos = self.currentChunk.pos,variables = self.mainENV,cc = self.currentENV}
@@ -367,23 +376,26 @@ function table.print(tbl, indent)
 	end
 end
 function parseManager:pushError(err,sym)
-	if not self.currentChunk then print("ERROR: ",err,sym) os.exit() end
+	local run = "Compile Time Error! "
+	if self.runtime then
+		run = "Run Time Error! "
+	end
+	if not self.currentChunk then print("ERROR compiling: ",err,sym) os.exit() end
 	local lines = bin.load(self.currentChunk.path):lines()
 	local chunk = self.currentChunk[self.currentChunk.pos-1]
-	-- table.print(chunk)
 	for i=1,#lines do
 		if sym then
 			if lines[i]:find(sym) then
-				print(err.." <"..sym.."> At line: "..i.." "..(lines[i]:gsub("^\t+","")))
+				print(run..err.." <"..sym.."> At line: "..i.." "..(lines[i]:gsub("^\t+","")))
 				break
 			end
 		elseif chunk.Type=="fwor" or chunk.Type=="fwr" then
 			if lines[i]:match(chunk.Func.."%(") then
-				print(err.." At line: "..i.." "..(lines[i]:gsub("^\t+","")).." ("..tostring(sym)..")")
+				print(run..err.." At line: "..i.." "..(lines[i]:gsub("^\t+","")).." ("..tostring(sym)..")")
 				break
 			end
 		else
-			print(err.." Line: ?")
+			print(run..err.." Line: ?")
 			break
 		end
 	end
@@ -401,7 +413,6 @@ local function pieceList(list,self,name)
 	local L={}
 	for i=1,#list do
 		if list[i]:match("[%w_]-%[.-%]") and list[i]:sub(1,1)~='"' then
-			-- print("dict")
 			local dict,sym=list[i]:match("([%w_]-)%[(.-)%]")
 			if tonumber(sym) then
 				L[#L+1]={"\1"..dict,tonumber(sym),IsALookup=true}
@@ -414,35 +425,26 @@ local function pieceList(list,self,name)
 				L[#L+1]="\1"..sym
 			end
 		elseif list[i]:sub(1,1)=="\"" and list[i]:sub(-1,-1)=="\"" then
-			-- print("string")
 			L[#L+1]=list[i]:sub(2,-2)
 		elseif list[i]:sub(1,1)=="[" and list[i]:sub(-1,-1)=="]" then
-			-- print("index")
 			L[#L+1]=pieceList(list[i]:sub(2,-2),self,name)
 		elseif tonumber(list[i]) then
-			-- print("number")
 			L[#L+1]=tonumber(list[i])
 		elseif list[i]=="true" then
-			-- print("true")
 			L[#L+1]=true
 		elseif list[i]=="false" then
-			-- print("false")
 			L[#L+1]=false
 		elseif list[i]:match("[%w_]+")==list[i] then
-			-- print("var?")
 			L[#L+1]="\1"..list[i]
 		elseif list[i]:match("[%w_]-%..-") then
-			-- print("dict?")
 			local dict,sym=list[i]:match("([%w_]-)%.(.+)")
 			L[#L+1]={"\1"..dict,sym,IsALookup=true}
 		elseif list[i]:match("^([%w_]+)%s*%((.*)%)$") then
-			-- print("func")
 			local func,args = list[i]:match("^([%w_]+)%s*%((.*)%)$")
 			local sym = getSymbol("`")
 			self:compileFWR(func,sym,args,name)
 			L[#L+1]="\1"..sym
 		elseif list[i]:match("[_%w%+%-/%*%^%(%)%%]+") and list[i]:match("[%+%-/%*%^%%]+") then
-			-- print("math")
 			local char=getSymbol("$")
 			self:compileExpr(char,list[i],name)
 			L[#L+1]="\1"..char
@@ -528,6 +530,8 @@ function parseManager:compileAssign(assignA,assignB,name)
 				assign.vals[#assign.vals+1]={"\1"..dict,tonumber(sym),IsALookup=true}
 			elseif sym:sub(1,1)=="\"" and sym:sub(-1,-1)=="\"" then
 				assign.vals[#assign.vals+1]={"\1"..dict,sym:sub(2,-2),IsALookup=true}
+			else
+				assign.vals[#assign.vals+1]={"\1"..dict,"\1"..sym,IsALookup=true}
 			end
 		elseif listB[k]:match("[%w_]-%..-") and not listB[k]:match("(%d-)%.(%d-)") then
 			local dict,sym=listB[k]:match("([%w_]-)%.(.+)")
@@ -553,7 +557,9 @@ function parseManager:compileAssign(assignA,assignB,name)
 			self:debug(assignA,assignB,name)
 		end
 	end
-	table.insert(self.chunks[name],assign)
+	if #assign.vars~=0 then
+		table.insert(self.chunks[name],assign)
+	end
 end
 function parseManager:compileCondition(condition,iff,elsee,name)
 	self:compileLogic(condition,iff,elsee,name)
@@ -655,9 +661,8 @@ function parseManager:compileExpr(eql,expr,name)
 				packFunc("\3"..i,self:pieceExpr(a))
 				return "@"
 			end)
-		end--self.cFuncs
+		end
 		expr=expr:gsub("%b()",function(a)
-			-- print(">",a)
 			return self:pieceExpr(a:sub(2,-2))
 		end)
 		local loop
@@ -676,7 +681,6 @@ function parseManager:compileExpr(eql,expr,name)
 		end
 	end
 	if expr:match("[!%$%s&_%w%+%-,/%*%.%^%(%)%%]+")==expr then
-		-- print(expr)
 		expr = expr:gsub("%s","")
 		parseManager:pieceExpr(expr)
 		cmds[#cmds]["vars"]={"\1"..eql}
@@ -739,7 +743,7 @@ function parseManager:compileLogic(condition,iff,elsee,name)
 		local mathass=0
 		_conds=conds:gsub("%s*\5".."1==0","")
 		local cmds={}
-		for l,eq,r in conds:gmatch("(.-)([=~!><][=]*)(.-)%s*[\4\5]") do
+		for l,eq,r in conds:gmatch("(.-)%s*([=~!><][=]*)(.-)%s*[\4\5]") do
 			charL=string.char(count+65)
 			charM=string.char(mathass+65)
 			count=count+1
@@ -793,6 +797,9 @@ function parseManager:compileLogic(condition,iff,elsee,name)
 		_conds=_conds:gsub("\4","*")
 		_conds=_conds:gsub("\5","+")
 		if not _conds:find("%*") and not _conds:find("%+") then
+			if not cmds.vars then 
+				self:pushError("Invalid condition passed!",condition)
+			end
 			cmds.vars[1]="\1L$"
 		else
 			self:compileExpr("L$",_conds,name)
@@ -841,21 +848,55 @@ function parseManager:compile(name,ctype,data)
 	self:debug("COMPILING Block: "..name)
 	local data=bin.new(data):lines()
 	local choiceBlock=false
+	local stack = {}
+	local choiceBlockLOOP=false
 	local choice={}
 	for i=1,#data do
 		data[i]=trim1(data[i])
 		if data[i]~="" then
-			if data[i]:match(".-\"<%s*") then
+			if data[i]:match("for[%s%w=%-]-[%d%-,%s]-<") then
+				choiceBlockFor=true
+				local sym = getSymbol("FOR")
+				local var,a,b,c = data[i]:match("for%s*([%w_]+)%s*=%s*(%-*[%d]+),%s*(%-*[%d]+)%s*,*%s*(%-*[%d]*)")
+				local s = getSymbol(getSymbol("LOOPEND"))
+				push(stack,{sym,var,a,b,s,1,c}) -- 1 for loop, 2 while loop
+				data[i] = "::"..sym.."::"
+				self:compileAssign(var,a,name)
+			elseif data[i]:match("while ([_%w=><~!%-%s]+)<$") then
+				-- WHILE LOOP
+				local sym = getSymbol("WHILE")
+				local s = getSymbol(getSymbol("LOOPEND"))
+				self:compileLabel(sym,name)
+				local cond = data[i]:match("while ([_%w=><~!%-%s]-)%s*<$")
+				data[i]="if "..cond.." then SKIP(0)|GOTO(\""..s.."\")"
+				push(stack,{sym,0,0,0,s,2}) -- 1 for loop, 2 while loop
+			elseif data[i]:match(".-\"%s*<%s*") then
 				choiceBlock=true
 				choice={}
 				j=0
 			end
+			if (choiceBlockLOOP or #stack~=0) and not choiceBlock then
+				if data[i]==">" then
+					choiceBlockLOOP=false
+					local dat = pop(stack)
+					local s = dat[5]
+					local cmd = dat[6]
+					if cmd==1 then
+						self:compileAssign(dat[2],dat[2] .. (tonumber(dat[7]) or "+1"),name)
+						self:compileCondition(dat[2].."=="..tonumber(dat[4])+(tonumber(dat[7]) or 1),"GOTO(\""..s.."\")","GOTO(\""..dat[1].."\")",name)
+						data[i] = "::"..s.."::"
+					elseif cmd == 2 then
+						self:compileFWOR("GOTO","\""..dat[1].."\"",name)
+						data[i]="::"..s.."::"
+					end
+				end
+			end
 			if choiceBlock then
-				if data[i]:find(">") then
+				if data[i]==">" then
 					choiceBlock=false
 					table.insert(self.chunks[name],choice)
 				else
-					dat=data[i]:gsub("<","")
+					dat=data[i]:gsub("%s*<","")
 					if j==0 then
 						choice.Type="choice"
 						choice.prompt=dat:sub(2,-2)
@@ -863,12 +904,12 @@ function parseManager:compile(name,ctype,data)
 					else
 						local a,b=dat:match("\"(.-)\"%s*(.+)")
 						if b then
-							local f,ag=b:match("^([%w_]+)%s*%((.*)%)")
+							local f,ag=b:match("^([%w_]+)%s*(%b())")
 							if ag~="" then
 								choice[#choice+1]={a,{
 									Type="fwor",
 									Func=f,
-									args=pieceList(ag,self,name),
+									args=pieceList(ag:sub(2,-2),self,name),
 								}}
 							else
 								choice[#choice+1]={a,{
@@ -900,19 +941,14 @@ function parseManager:compile(name,ctype,data)
 				local flags,target = data[i]:match("(%u+)%s([%w%s]+)")
 				------
 				if line then
-					-- print(1)
 					self:compileLine(line,name)
 				elseif condition then
-					-- print(2)
 					self:compileCondition(condition,iff,elsee,name)
 				elseif FWR then
-					-- print(3)
 					self:compileFWR(FWR,vars,args,name)
 				elseif FWOR then
-					-- print(4)
 					self:compileFWOR(FWOR,args,name)
 				elseif FWR2 then
-					-- print(5)
 					local dict,dot,sym=FWR2:match("([%w_]-)([%.:])(.+)")
 					if dot==":" then
 						args2=dict..","..args2
@@ -922,7 +958,6 @@ function parseManager:compile(name,ctype,data)
 					end
 					self:compileFWR({dict,sym,IsALookup=true},vars2,args2,name)
 				elseif FWOR2 then
-					-- print(6)
 					local dict,dot,sym=FWOR2:match("([%w_]-)([%.:])(.+)")
 					if dot==":" then
 						args2=dict..","..args2
@@ -932,29 +967,23 @@ function parseManager:compile(name,ctype,data)
 					end
 					self:compileFWOR({dict,sym,IsALookup=true},args2,name)
 				elseif assignA then
-					-- print(7)
 					self:compileAssign(assignA,assignB,name)
 				elseif label then
-					-- print(8)
 					self:compileLabel(label,name)
 				elseif Return and isFBlock then
-					-- print(9)
 					table.insert(self.chunks[name],{
 						Type="return",
 						RETArgs=pieceList(RETArgs,self,name)
 					})
 				elseif Return and not(isFBlock) then
-					-- print(10)
 					self:pushError("Attempt to call return in a non function block!",data[i])
 				elseif flags and target then
-					-- print(11)
 					table.insert(self.chunks[name],{
 						Type = "toggle",
 						Flags = flags,
 						Target = target
 					})
 				else
-					-- print(12)
 					table.insert(self.chunks[name],{
 						Type="customdata",
 						data=data[i],
@@ -1005,15 +1034,6 @@ function parseManager:define(t)
 	for i,v in pairs(t) do
 		self.methods[i]=v
 	end
-end
-function push(s,n)
-	table.insert(s,n)
-end
-function pop(s)
-	return table.remove(s)
-end
-function peek(s)
-	return s[#s]
 end
 function parseManager:Invoke(func,vars,...)
 	local name=func
@@ -1222,6 +1242,7 @@ function parseManager:next(block,choice)
 		chunk.pos=chunk.pos+1
 		data=chunk[chunk.pos]
 	end
+	if not data then return end
 	chunk.pos=chunk.pos+1
 	self:debug("TYPE: "..data.Type)
 	if data.Type=="text" then

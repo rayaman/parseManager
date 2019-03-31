@@ -15,6 +15,12 @@ parseManager:define{
 	error=function(self,msg)
 		self:pushError(msg,"\2")
 	end,
+	setGlobalVar=function(self,var,val)
+		self.mainENV[var]=val
+	end,
+	getGlobalVar=function(self,var,val)
+		self.mainENV[var]=val
+	end,
 	QUIT=function()
 		os.exit()
 	end,
@@ -299,18 +305,33 @@ parseManager:define{
 		end
 	end,
 	COMPARE=function(self,v1,v2,sym)
-		if sym==nil then self:pushError("Unexpected Error has occured!",":(") end
+		if sym==nil then self:pushError("Unexpected Error has occurred!","non-existing variable!") end
 		if sym=="==" then
 			if v1==v2 then return 1 else return 0 end
 		elseif sym==">=" then
+			if v1 == nil or v2 == nil then
+				self:pushError("Conditional mathematical args are non-existing!")
+			end
 			if v1>=v2 then return 1 else return 0 end
 		elseif sym=="<=" then
+			if v1 == nil or v2 == nil then
+				self:pushError("Conditional mathematical args are non-existing!")
+			end
 			if v1<=v2 then return 1 else return 0 end
 		elseif sym==">" then
+			if v1 == nil or v2 == nil then
+				self:pushError("Conditional mathematical args are non-existing!")
+			end
 			if v1>v2 then return 1 else return 0 end
 		elseif sym=="<" then
+			if v1 == nil or v2 == nil then
+				self:pushError("Conditional mathematical args are non-existing!")
+			end
 			if v1<v2 then return 1 else return 0 end
 		elseif sym=="~=" or sym=="!=" then
+			if v1 == nil or v2 == nil then
+				self:pushError("Conditional mathematical args are non-existing!")
+			end
 			if v1~=v2 then return 1 else return 0 end
 		else
 			self:pushError("Invalid Symbol!",sym)

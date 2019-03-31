@@ -2,15 +2,30 @@ ENTRY MAIN
 USING extendedDefine
 VERSION 4.1 //The version that nested functions was introduced
 [MAIN]{
-	// New feature functions inside of functions
-	a = hmm(5,1)
-	"a = $a$"
-	b = hmm(hmm(6+5,hmm(1+5,1 + 1)),5 + sqrt(100))
-	"b = $b$"
+	test = [1,2,3,4,5,6,7,8,9,10]
+	t=0
+	for i = 1,10 <
+		"Choice Test: $test[1]$" <
+			"A" setGlobalVar("t",1)
+			"B" continue()
+			"C" setGlobalVar("t",3)
+		>
+	>
+	::leave::
+	print("t = $t$ i = $i$")
 }
-[hmm:function(a,b)]{
-	return a+b
-}
+// [hmm:function(a,b)]{
+	// return a+b
+// }
+// [A1]{
+	// "At: 1"
+// }
+// [A2]{
+	// "At: 2"
+// }
+// [A3]{
+	// "At: 3"
+// }
 // [TEST]{
 	// newThread("TEST2")
 	// ::loop::
