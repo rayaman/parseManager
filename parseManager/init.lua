@@ -16,6 +16,7 @@ parseManager.currentHandle=nil
 parseManager.currentHandleName=nil
 parseManager.state = {}
 parseManager.active = true
+parseManager.usings = {}
 function parseManager:mainRunner(block)
 	local t = self:next(block)
 	if not t then return nil end
@@ -105,6 +106,7 @@ function parseManager:DISABLE(fn)
 end
 function parseManager:USING(fn,name)
 	local m = require("parseManager."..fn)
+	self.usings[#self.usings]={fn,name}
 	if not m then
 		self:pushError(fn.." was not found as an import that can be used!")
 	else
@@ -113,6 +115,52 @@ function parseManager:USING(fn,name)
 			self.mainENV[name or fn]=ret
 		end
 	end
+end
+--[[
+self.VERSION = 5
+self.chunks={}
+self.stats={warnings = true}
+self.stack={}
+self.cFuncs={}
+self.mainENV={_VERSION = self.VERSION}
+self.__INTERNAL = {}
+self.currentENV=self.mainENV
+self.entry="START"
+self.methods={}
+self.lastCall=nil
+self.currentHandle=nil
+self.currentHandleName=nil
+self.state = {}
+self.active = true
+self.usings = {}
+]]
+function parseManager:compileToFile(path,topath)
+	local file = bin.new()
+	local state = self:load(path)
+	file:addBlock(state.VERSION)
+	file:addBlock(state.chunks)
+	file:addBlock(state.stats)
+	-- file:addBlock(state.cFuncs)
+	-- file:addBlock(state.__INTERNAL)
+	file:addBlock(#state.entry,1)
+	file:addBlock(state.entry)
+	file:addBlock(state.usings)
+	file:tofile(topath)
+	return state
+end
+function parseManager:loadCompiled(path)
+	local file = bin.load(path)
+	local c = {}
+	setmetatable(c,parseManager)
+	c.VERSION = file:getBlock("n",4)
+	c.chunks = file:getBlock("t")
+	c.stats = file:getBlock("t")
+	-- c.cFuncs = file:getBlock("t")
+	-- c.__INTERNAL = file:getBlock("t")
+	local size = file:getBlock("n",1)
+	c.entry = file:getBlock("s",size)
+	c.usings = file:getBlock("t")
+	return c
 end
 function parseManager:load(path,c)
 	local c = c
@@ -1146,7 +1194,15 @@ function parseManager:parseHeader(data)
 					self:pushError("Attempt to round a non number!")
 				end
 			elseif dat:find("%[") then
-				if not type(self.currentENV[dat])=="table" then
+				if type(self.currentENV[dat:match("(.-)%[")])=="string" then
+					if dat:find(":") then
+						local var,inwards = dat:match("(.-)%[(.+)%]")
+						local ind = parseManager.split(inwards,":")
+						if #ind==2 then
+							return self.currentENV[dat:match("(.-)%[")]:sub(ind[1],ind[2])
+						end
+					end
+				elseif not type(self.currentENV[dat])=="table" then
 					self:pushError("Attempt to index a non table object!")
 					return
 				else
