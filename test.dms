@@ -2,11 +2,14 @@ ENTRY MAIN
 USING extendedDefine
 VERSION 4.1
 [MAIN]{
-	test = [1,2,3,4,5,6,7,8,9,10]
-	t=0
-	test2 = "Hello"
-	str = $test2[1:-2]$
-	print(str)
+	// test = [1,2,3,4,5,6,7,8,9,10]
+	// t=0
+	// test2 = "Hello"
+	// str = $test2[1:-1]$
+	// print("$test2[-1:1]$")
+	// print(str)
+	// t=testfunc(1,2)
+	// print(t)
 	// for i = 1,10 <
 		// "Choice Test: $test[1]$" <
 			// "A" setGlobalVar("t",1)
@@ -16,4 +19,25 @@ VERSION 4.1
 	// >
 	// ::leave::
 	// print("t = $t$ i = $i$")
+	val = 0
+	multi = external()
+	multi:newTLoop(testfunc,1)
+	// multi:newTLoop(testfunc2)
+	// alarm = multi:newAlarm(3)
+	// alarm:OnRing(testfunc)
+	print("Hooked function!")
+}
+[testfunc:function()]{
+	val = val + 1
+	print("Called $val$ times!")
+	return True
+}
+[testfunc2:function()]{
+	"Test"<
+		"1" print("A")
+		"2" print("B")
+		"3" print("C")
+	>
+	// print("Yo whats up!")
+	return True
 }

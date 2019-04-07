@@ -2,9 +2,15 @@ package.path="?/init.lua;lua/?/init.lua;lua/?.lua;"..package.path
 local bin = require("bin")
 local multi = require("multi")
 require("parseManager")
+require("multi")
 test=parseManager:compileToFile("test.dms","test.dmsc")--load("StoryTest/init.dms")
 --~ test = parseManager:loadCompiled("test.dmsc")
 print(test:dump())
+test:define{
+	external=function(self)
+		return multi
+	end
+}
 t=test:next()
 while t do
 	if t.Type=="text" then
@@ -39,3 +45,4 @@ while t do
 		t=test:next()
 	end
 end
+multi:mainloop()

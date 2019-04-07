@@ -1083,7 +1083,63 @@ function parseManager:define(t)
 		self.methods[i]=v
 	end
 end
+function parseManager:handleChoice(func)
+	self.choiceManager = func
+end
 function parseManager:Invoke(func,vars,...)
+	if not self.isrunning then
+		self.isrunning = true
+		local t=self:next()
+		local name=func
+		local func=self.chunks[func]
+		if func then
+			if func.type:sub(1,1)=="f" then
+				local returndata={}
+				self.fArgs={...}
+				if #self.fArgs==0 then
+					self.fArgs={self.lastCall}
+				end
+				push(self.stack,{chunk=self.currentChunk,pos=self.currentChunk.pos,env=self.currentENV,vars=vars})
+				self.currentENV = self:newENV()
+				self.methods.JUMP(self,name)
+				-- return
+			else
+				self:pushError("Attempt to call a non function block!",name)
+			end
+		else
+			self:pushError("Attempt to call a non existing function!",name)
+		end
+		while t do
+			if t.Type=="text" then
+				io.write(t.text)
+				io.read()
+				t=self:next()
+			elseif t.Type=="condition" then
+				t=self:next()
+			elseif t.Type=="assignment" then
+				t=self:next()
+			elseif t.Type=="label" then
+				t=self:next()
+			elseif t.Type=="method" then
+				t=self:next()
+			elseif t.Type=="choice" then
+				if self.choiceManager then
+					t=self:choiceManager(t)
+				else
+					t=self:next(nil,math.random(1,#t[1]))
+				end
+			elseif t.Type=="end" then
+				if t.text=="leaking" then
+					t=self:next()
+				end
+			elseif t.Type=="error" then
+				error(t.text)
+			else
+				t=self:next()
+			end
+		end
+		return
+	end
 	local name=func
 	local func=self.chunks[func]
 	if func then
@@ -1199,7 +1255,12 @@ function parseManager:parseHeader(data)
 						local var,inwards = dat:match("(.-)%[(.+)%]")
 						local ind = parseManager.split(inwards,":")
 						if #ind==2 then
-							return self.currentENV[dat:match("(.-)%[")]:sub(ind[1],ind[2])
+							local str = self.currentENV[dat:match("(.-)%[")]
+							if tonumber(ind[1])<0 and tonumber(ind[2])>0 then
+								return str:reverse():sub(math.abs(tonumber(ind[1])),-math.abs(tonumber(ind[2])))
+							else
+								return str:sub(ind[1],ind[2])
+							end
 						end
 					end
 				elseif not type(self.currentENV[dat])=="table" then
@@ -1276,8 +1337,12 @@ function parseManager:pairAssign(vars,vals,envF)
 end
 function parseManager:next(block,choice)
 	if self.entry then
+		self.isrunning = true
 		block = block or self.entry
 		self.entry = nil
+	end
+	if block then
+		self.isrunning = true
 	end
 	local chunk = self.currentChunk or self.chunks[block] or self.chunks["START"]
 	self.currentChunk=chunk
@@ -1293,12 +1358,12 @@ function parseManager:next(block,choice)
 	end
 	local ret
 	local data=chunk[chunk.pos]
-	if not data then return end
+	if not data then self.isrunning = false return end
 	if data.Type=="label" then
 		chunk.pos=chunk.pos+1
 		data=chunk[chunk.pos]
 	end
-	if not data then return end
+	if not data then self.isrunning = false return end
 	chunk.pos=chunk.pos+1
 	self:debug("TYPE: "..data.Type)
 	if data.Type=="text" then
