@@ -1,43 +1,61 @@
-ENTRY MAIN
+ENTRY INIT2
+LOADFILE Story/bedroom.dms
 USING extendedDefine
-VERSION 4.1
-[MAIN]{
-	// test = [1,2,3,4,5,6,7,8,9,10]
-	// t=0
-	// test2 = "Hello"
-	// str = $test2[1:-1]$
-	// print("$test2[-1:1]$")
-	// print(str)
-	// t=testfunc(1,2)
-	// print(t)
-	// for i = 1,10 <
-		// "Choice Test: $test[1]$" <
-			// "A" setGlobalVar("t",1)
-			// "B" continue()
-			// "C" setGlobalVar("t",3)
-		// >
-	// >
-	// ::leave::
-	// print("t = $t$ i = $i$")
-	val = 0
+DISABLE warnings
+USING audio as audio
+// DISABLE hostmsg
+[INIT2]{
 	multi = external()
-	multi:newTLoop(testfunc,1)
-	// multi:newTLoop(testfunc2)
-	// alarm = multi:newAlarm(3)
-	// alarm:OnRing(testfunc)
-	print("Hooked function!")
+	multi:newTLoop(DoMe,1)
 }
-[testfunc:function()]{
-	val = val + 1
-	print("Called $val$ times!")
-	return True
+[DoMe:function(a)]{
+	print("Hi",a)
 }
-[testfunc2:function()]{
-	"Test"<
-		"1" print("A")
-		"2" print("B")
-		"3" print("C")
-	>
-	// print("Yo whats up!")
-	return True
+/*
+[INIT]{
+	// The LOAD function will load variables and jump to the saved location. Be sure to setup runtime variables before the LOAD function is called!
+	WATCH("money","name","day","chapter","passive")
+	loaded,c,p = LOAD()
+	if loaded==false then JUMP("SETUP")|SKIP(0)
+	newThread("UPDATER","Thread_DisplayStats")
+	JUMP(c,p)
+	QUIT()
 }
+[SETUP]{
+	money = 100
+	name = getInput("Enter name: ")
+	day = 1
+	chapter = 1
+	passive = 1
+	newThread("UPDATER","Thread_DisplayStats")
+	SAVE()
+	JUMP("START")
+}
+[UPDATER]{
+	maintheme=audio:new("Audio/Nadia.ogg")
+	maintheme:play(.5)
+	::loop::
+		EXECUTE("title $name$ $$money$ Day: $day$ Chap: $chapter$")
+		sleep(.1)
+		money = money + passive
+	GOTO("loop")
+}
+[stop:function()]{
+	"hmm"
+	return 1,2
+}
+[Fade:function(obj)]{
+	// for x = 100, 0, -1 <
+		// sleep(.1)
+		// obj:setVolume(x/100)
+	// >
+}
+[START]{
+	"HI!"
+	maintheme:setVolume(1)
+	sleep(1)
+	Fade(maintheme)
+	"Yo"
+	// JUMP("BEDROOM")
+}
+*/

@@ -1,3 +1,10 @@
+_print = print
+local noprint
+function print(...)
+	if not noprint then
+		_print(...)
+	end
+end
 require("bin")
 parseManager={}
 parseManager.VERSION = 5
@@ -33,9 +40,9 @@ function parseManager:mainRunner(block)
 	elseif t.Type=="method" then
 		t=self:next()
 	elseif t.Type=="choice" then
-		print(t.text)
+		_print(t.text)
 		for i=1,#t.choices do
-			print(i..". "..t.choices[i])
+			_print(i..". "..t.choices[i])
 		end
 		io.write("Choose#: ")
 		cm=tonumber(io.read())
@@ -99,9 +106,15 @@ function factorial(n)
     end
 end
 function parseManager:ENABLE(fn)
+	if fn == "hostmsg" then
+		noprint = false
+	end
 	self.stats[string.lower(fn)]=true
 end
 function parseManager:DISABLE(fn)
+	if fn == "hostmsg" then
+		noprint = true
+	end
 	self.stats[string.lower(fn)]=false
 end
 function parseManager:USING(fn,name)
@@ -168,6 +181,9 @@ function parseManager:load(path,c)
 		c = {}
 		setmetatable(c,parseManager)
 	end
+	if not c.path then
+		c.path = path
+	end
 	local file
 	if type(path)=="table" then
 		if path.Type=="bin" then
@@ -203,7 +219,7 @@ function parseManager:load(path,c)
 		self:debug("E",fn)
 		c:ENABLE(fn)
 	end
-	for fn in header:gmatch("LOAD (.-)\n") do
+	for fn in header:gmatch("LOADFILE (.-)\n") do
 		self:debug("L",fn)
 		c:load(fn,c)
 	end
@@ -412,6 +428,7 @@ function parseManager:dump()
 	return str
 end
 function table.print(tbl, indent)
+	if type(tbl)~="table" then return end
 	if not indent then indent = 0 end
 	for k, v in pairs(tbl) do
 		formatting = string.rep('  ', indent) .. k .. ': '
@@ -469,7 +486,6 @@ local function pieceList(list,self,name)
 			else
 				local sym = getSymbol("`")
 				self:compileFWR("__PUSHPARSE",sym,'"$'..list[i]..'$"',name)
-				cc=cc+1
 				L[#L+1]="\1"..sym
 			end
 		elseif list[i]:sub(1,1)=="\"" and list[i]:sub(-1,-1)=="\"" then
@@ -871,18 +887,32 @@ end
 local function trim1(s)
 	return (s:gsub("^%s*(.-)%s*$", "%1"))
 end
+local function extract(dat,name)
+	if type(dat)=="string" and dat:sub(1,1)=="\1" then
+		return dat:sub(2,-1)
+	elseif tonumber(dat)~=nil then
+		return tonumber(dat)
+	else
+		return dat
+	end
+end
 function parseManager:compile(name,ctype,data)
 	local isFBlock,FBArgs=ctype:match("(f)unction%((.*)%)")
 	--Check if we are dealing with a FBlock
 	if isFBlock=="f" then
+		if not self.isInternal then
+			self.isInternal = {}
+		end
 		self.cFuncs[name]=true
 		-- if self.methods[name] then
 			-- self:pushError("You cannot create a method with the same name as a standard method or duplicate method names!",name)
 		-- end
 		self.methods[name]=function(...)
-			self:Invoke(name,...)
+			--self:Invoke(name,...)
+			return self:Call(name,...)
 		end
-		self.__INTERNAL[name] = true
+		self.isInternal[name]=self.methods[name]
+		-- self.__INTERNAL[name] = true
 		-- if not self.variables.__internal then
 			-- self.variables.__internal = {}
 		-- end
@@ -902,10 +932,10 @@ function parseManager:compile(name,ctype,data)
 	for i=1,#data do
 		data[i]=trim1(data[i])
 		if data[i]~="" then
-			if data[i]:match("for[%s%w=%-]-[%d%-,%s]-<") then
+			if data[i]:match("for[%s%w=%-]-[%d%-%w%(%),%s]-<") then
 				choiceBlockFor=true
 				local sym = getSymbol("FOR")
-				local var,a,b,c = data[i]:match("for%s*([%w_]+)%s*=%s*(%-*[%d]+),%s*(%-*[%d]+)%s*,*%s*(%-*[%d]*)")
+				local var,a,b,c = data[i]:match("for%s*([%w_]+)%s*=%s*(%-*[%d%w%(%)]+),%s*(%-*[%d%w%(%)]+)%s*,*%s*(%-*[%d%w%(%)]*)")
 				local s = getSymbol(getSymbol("LOOPEND"))
 				push(stack,{sym,var,a,b,s,1,c}) -- 1 for loop, 2 while loop
 				data[i] = "::"..sym.."::"
@@ -930,7 +960,12 @@ function parseManager:compile(name,ctype,data)
 					local s = dat[5]
 					local cmd = dat[6]
 					if cmd==1 then
-						self:compileAssign(dat[2],dat[2] .. (tonumber(dat[7]) or "+1"),name)
+						local t = extract(dat[7],name)
+						if type(t)=="string" then
+							t="+"..t
+						end
+						-- print(dat[2] .. (t or "+1"))
+						self:compileAssign(dat[2],dat[2] .. (t or "+1"),name)
 						self:compileCondition(dat[2].."=="..tonumber(dat[4])+(tonumber(dat[7]) or 1),"GOTO(\""..s.."\")","GOTO(\""..dat[1].."\")",name)
 						data[i] = "::"..s.."::"
 					elseif cmd == 2 then
@@ -1050,6 +1085,15 @@ function parseManager:testDict(dict)
 		return
 	end
 end
+function parseManager:dataToEnv(values)
+	local env = {}
+	if values then
+		for i,v in pairs(values) do
+			env[#env+1] = test:dataToValue(v)
+		end
+	end
+	return env
+end
 function parseManager:dataToValue(name,envF,b) -- includes \1\
 	envF=envF or self.currentENV
 	local tab=name
@@ -1076,7 +1120,11 @@ function parseManager:dataToValue(name,envF,b) -- includes \1\
 			end
 		end
 	end
-	return tab or {}
+	if tab~= nil then
+		return tab
+	else
+		return {}
+	end
 end
 function parseManager:define(t)
 	for i,v in pairs(t) do
@@ -1085,80 +1133,6 @@ function parseManager:define(t)
 end
 function parseManager:handleChoice(func)
 	self.choiceManager = func
-end
-function parseManager:Invoke(func,vars,...)
-	if not self.isrunning then
-		self.isrunning = true
-		local t=self:next()
-		local name=func
-		local func=self.chunks[func]
-		if func then
-			if func.type:sub(1,1)=="f" then
-				local returndata={}
-				self.fArgs={...}
-				if #self.fArgs==0 then
-					self.fArgs={self.lastCall}
-				end
-				push(self.stack,{chunk=self.currentChunk,pos=self.currentChunk.pos,env=self.currentENV,vars=vars})
-				self.currentENV = self:newENV()
-				self.methods.JUMP(self,name)
-				-- return
-			else
-				self:pushError("Attempt to call a non function block!",name)
-			end
-		else
-			self:pushError("Attempt to call a non existing function!",name)
-		end
-		while t do
-			if t.Type=="text" then
-				io.write(t.text)
-				io.read()
-				t=self:next()
-			elseif t.Type=="condition" then
-				t=self:next()
-			elseif t.Type=="assignment" then
-				t=self:next()
-			elseif t.Type=="label" then
-				t=self:next()
-			elseif t.Type=="method" then
-				t=self:next()
-			elseif t.Type=="choice" then
-				if self.choiceManager then
-					t=self:choiceManager(t)
-				else
-					t=self:next(nil,math.random(1,#t[1]))
-				end
-			elseif t.Type=="end" then
-				if t.text=="leaking" then
-					t=self:next()
-				end
-			elseif t.Type=="error" then
-				error(t.text)
-			else
-				t=self:next()
-			end
-		end
-		return
-	end
-	local name=func
-	local func=self.chunks[func]
-	if func then
-		if func.type:sub(1,1)=="f" then
-			local returndata={}
-			self.fArgs={...}
-			if #self.fArgs==0 then
-				self.fArgs={self.lastCall}
-			end
-			push(self.stack,{chunk=self.currentChunk,pos=self.currentChunk.pos,env=self.currentENV,vars=vars})
-			self.currentENV = self:newENV()
-			self.methods.JUMP(self,name)
-			return
-		else
-			self:pushError("Attempt to call a non function block!",name)
-		end
-	else
-		self:pushError("Attempt to call a non existing function!",name)
-	end
 end
 function round(num, numDecimalPlaces)
 	local mult = 10^(numDecimalPlaces or 0)
@@ -1370,51 +1344,30 @@ function parseManager:next(block,choice)
 		self.lastCall=nil
 		return {Type="text",text=self:parseHeader(data.text)}
 	elseif data.Type=="funcblock" then
-		local env=self.currentENV
-		self.currentENV=self:newENV()
-		self:pairAssign(data.args,self.fArgs,env)
+		-- self:pairAssign(data.args,self.fArgs)
 		return {Type="FBLOCK"}
 	elseif data.Type=="return" then
-		local obj=pop(self.stack)
-		local chunk=obj.chunk
-		local pos=obj.pos
-		local env=obj.env
-		local vars=obj.vars
-		local name=chunk.name
-		local env=self.currentENV
-		chunk.pos=pos
-		self.currentENV=env
-		self:pairAssign(vars,data.RETArgs,env)
-		self.currentChunk=chunk
-		return {Type="method"}
+		return {Type="method",Vars = vars, RetArgs = data.RETArgs}
 	elseif data.Type=="fwr" then
 		local args=self:dataToValue(data.args,nil,data.Func == "__PUSHPARSE")
 		local rets={}
 		local Func
-		local Ext=false
 		if type(data.Func)=="table" then
 			Ext=true
 			Func=self.currentENV[data.Func[1]][data.Func[2]]
 		else
 			Func=self.methods[data.Func]
 		end
-		if Ext then
+		if self.isInternal[data.Func] then
 			rets={Func(unpack(args))}
-		elseif self.__INTERNAL[data.Func] then
-			self:Invoke(data.Func,data.vars,unpack(args))
 		else
-			if type(Func)~="function" then
-				rets={self:Invoke(data.Func,data.vars,unpack(args))}
-				return {Type="method"}
-			else
-				rets={Func(self,unpack(args))}
-			end
+			rets={Func(self,unpack(args))}
 		end
 		if #rets~=0 then
 			self:pairAssign(data.vars,rets)
 		end
 		self.lastCall=nil
-		return {Type="method"}
+		return {Type="method",name=data.Func,args = args}
 	elseif data.Type=="fwor" then
 		local args=self:dataToValue(data.args)
 		local Func
@@ -1428,14 +1381,9 @@ function parseManager:next(block,choice)
 		if Ext then
 			self.lastCall=Func(unpack(args))
 		else
-			if type(Func)~="function" then
-				self.lastCall=self:Invoke(data.Func,"lastCall",unpack(args))
-				return {Type="method"}
-			else
-				self.lastCall=Func(self,unpack(args))
-			end
+			self.lastCall=Func(self,unpack(args))
 		end
-		return {Type="method"}
+		return {Type="method",name=data.Func,args = args}
 	elseif data.Type=="choice" then
 		self.choiceData=data
 		local CList={}

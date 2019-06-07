@@ -1,3 +1,4 @@
+local bin = require("bin")
 local clock = os.clock
 parseManager:define{
 	__PUSHPARSE = function(self,dat)
@@ -10,7 +11,39 @@ parseManager:define{
 		return io.read()
 	end,
 	print=function(self,...)
-		print(...)
+		_print(...)
+	end,
+	WATCH=function(self,...)
+		if self.watchvars then return end
+		self.watchvars = {...}
+	end,
+	SAVE=function(self,fn)
+		local file = bin.new()
+		local data = {}
+		for i=1,#self.watchvars do
+			data[self.watchvars[i]] = self.currentENV[self.watchvars[i]]
+		end
+		data["__CHUNK"] = self.methods.getCurrentChunk(self)
+		data["__POSITION"] = self.methods.getCurrentPosition(self)
+		file:addBlock(data)
+		file:tofile(fn or "save.dat")
+	end,
+	LOAD=function(self,fn)
+		if not bin.fileExists(fn or "save.dat") then return false end
+		local file = bin.load(fn or "save.dat")
+		t = file:getBlock("t")
+		local c,p = t.__CHUNK,t.__POSITION
+		t.__CHUNK,t.__POSITION = nil,nil
+		for i,v in pairs(t) do
+			self.mainENV[i] = v
+		end
+		if self.stats.statesave then
+			self.methods.JUMP(self,c, p)
+		end
+		return true,c,p
+	end,
+	EXECUTE = function(self,cmd)
+		os.execute(cmd)
 	end,
 	error=function(self,msg)
 		self:pushError(msg,"\2")
@@ -21,16 +54,29 @@ parseManager:define{
 	getGlobalVar=function(self,var,val)
 		self.mainENV[var]=val
 	end,
+	len=function(self,t)
+		return #t
+	end,
 	QUIT=function()
 		os.exit()
+	end,
+	getCurrentChunk = function(self)
+		for i,v in pairs(self.chunks) do
+			if self.currentChunk == v then
+				return i
+			end
+		end
+	end,
+	getCurrentPosition = function(self)
+		return self.currentChunk.pos-1
 	end,
 	sleep=function(self,n)
 		local t0 = clock()
 		while clock() - t0 <= n do end
 	end,
-	JUMP=function(self,block)
+	JUMP=function(self,block,pos)
 		if self.chunks[block] then
-			self.chunks[block].pos=1
+			self.chunks[block].pos=pos or 1
 			self.currentChunk=self.chunks[block]
 		else
 			self:pushError("Attempt to jump to a non existing block:","\2")
@@ -342,7 +388,4 @@ parseManager:define{
 			self.methods.SKIP(self,1)
 		end
 	end,
-	print=function(self,...)
-		print(...)
-	end
 }

@@ -1,4 +1,4 @@
-local multi,bin,GLOBAL,sThread
+local multi, bin, GLOBAL,sThread
 local loaded, err = pcall(function()
 	multi = require("multi")
 	local plat = multi:getPlatform()
@@ -7,18 +7,17 @@ local loaded, err = pcall(function()
 	elseif plat == "love2d" then
 		GLOBAL, sThread = require("multi.integration.loveManager").init()
 	end
-	GLOBAL["TEST"]=true
 	bin = require("bin")
 end)
 function parseManager:extendedDefine()
 	if not loaded then self:pushWarning("Could not load the extendedDefine module!") print(err) end
 	local tc = 1
+	self.mainENV=GLOBAL
+	self.currentENV=GLOBAL
 	self:define{
-		setVar = function(self,name,val)
-			GLOBAL[name]=val
-		end,
-		getVar = function(self,name)
-			return sThread.waitFor(name)
+		WATCH=function(self,...)
+			if self.watchvars then return end
+			self.watchvars = {...}
 		end,
 		newThread = function(self,block,name)
 			multi:newSystemThread(name or "NewThread"..tc,function(blck,path,name)
@@ -30,22 +29,18 @@ function parseManager:extendedDefine()
 					sThread=_G.sThread
 				end
 				local test=parseManager:load(path)
-				t=test:next(blck)
+				test.mainENV = GLOBAL
+				test.currentENV = GLOBAL
 				test:define{
 					sleep = function(self,n)
 						thread.sleep(n)
 					end,
-					setVar = function(self,name,val)
-						GLOBAL[name]=val
-					end,
-					getVar = function(self,name)
-						return sThread.waitFor(name)
-					end,
-					test = function(self,text)
-						os.execute("title "..text.."")
+					title = function(self,t)
+						os.execute("title "..t)
 					end
 				}
-				multi:newThread("Runner",function()
+				t=test:next(blck)
+				multi:newThread(name,function()
 					while true do
 						thread.skip(0)
 						if not t then error("Thread ended!") end
@@ -78,7 +73,9 @@ function parseManager:extendedDefine()
 				multi:mainloop()
 			end,block,self.currentChunk.path,name or "NewThread"..tc)
 			tc=tc+1
-			
 		end,
 	}
 end
+multi.OnError(function(...)
+	print(...)
+end)

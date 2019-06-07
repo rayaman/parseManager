@@ -24,10 +24,10 @@
             <Keywords name="Folders in comment, open">/*</Keywords>
             <Keywords name="Folders in comment, middle"></Keywords>
             <Keywords name="Folders in comment, close">*/</Keywords>
-            <Keywords name="Keywords1">ENABLE DISABLE LOAD ENTRY USING VERSION as</Keywords>
+            <Keywords name="Keywords1">ENABLE DISABLE LOADFILE ENTRY USING VERSION as</Keywords>
             <Keywords name="Keywords2">if then return and or True False for while</Keywords>
-            <Keywords name="Keywords3">leaking debugging warnings</Keywords>
-            <Keywords name="Keywords4">ceil tan CSIM log10 sinh GOTOE lshift deg MUL QUIT cosh exp rad GOTO SUB log ADD JUMP error POW randomseed floor tanh max atan SKIP acos DIV abs rshif COMPARE print atan2 asin cos sin mod sqrt function getInput sleep getVar setVar newThread setGlobalVar getGlobalVar</Keywords>
+            <Keywords name="Keywords3">leaking debugging warnings statesave hostmsg</Keywords>
+            <Keywords name="Keywords4">ceil tan CSIM log10 sinh GOTOE lshift deg MUL QUIT cosh exp rad GOTO SUB log ADD JUMP error POW randomseed floor tanh max atan SKIP acos DIV abs rshif COMPARE print atan2 asin cos sin mod sqrt function getInput sleep getVar setVar newThread setGlobalVar getGlobalVar SAVE LOAD WATCH</Keywords>
             <Keywords name="Keywords5">_VERSION</Keywords>
             <Keywords name="Keywords6">filesystem extendedDefine</Keywords>
             <Keywords name="Keywords7"></Keywords>
