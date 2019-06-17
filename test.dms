@@ -1,15 +1,27 @@
 ENTRY INIT2
 LOADFILE Story/bedroom.dms
-USING extendedDefine
+// USING extendedDefine
 DISABLE warnings
 USING audio as audio
 // DISABLE hostmsg
 [INIT2]{
-	multi = external()
-	multi:newTLoop(DoMe,1)
+	"Text block"
+	"Testing default text handler"
+	g=DoMe(2)
+	print("WHAT!!! $g$")
+}
+[A]{
+	"Yay it works!"
 }
 [DoMe:function(a)]{
-	print("Hi",a)
+	"handle me"
+	if a==0 then SKIP(0)|GOTO("end")
+		return 1
+	::end::
+		return a*SecondCall(a-1)
+}
+[SecondCall:function()]{
+	return 6
 }
 /*
 [INIT]{

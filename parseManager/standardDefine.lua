@@ -11,7 +11,7 @@ parseManager:define{
 		return io.read()
 	end,
 	print=function(self,...)
-		_print(...)
+		print(...)
 	end,
 	WATCH=function(self,...)
 		if self.watchvars then return end

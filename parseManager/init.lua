@@ -1,10 +1,4 @@
-_print = print
 local noprint
-function print(...)
-	if not noprint then
-		_print(...)
-	end
-end
 require("bin")
 parseManager={}
 parseManager.VERSION = 5
@@ -24,47 +18,9 @@ parseManager.currentHandleName=nil
 parseManager.state = {}
 parseManager.active = true
 parseManager.usings = {}
-function parseManager:mainRunner(block)
-	local t = self:next(block)
-	if not t then return nil end
-	if t.Type=="text" then
-		io.write(t.text)
-		io.read()
-		t=self:next()
-	elseif t.Type=="condition" then
-		t=self:next()
-	elseif t.Type=="assignment" then
-		t=self:next()
-	elseif t.Type=="label" then
-		t=self:next()
-	elseif t.Type=="method" then
-		t=self:next()
-	elseif t.Type=="choice" then
-		_print(t.text)
-		for i=1,#t.choices do
-			_print(i..". "..t.choices[i])
-		end
-		io.write("Choose#: ")
-		cm=tonumber(io.read())
-		t=self:next(nil,cm,nil,t)
-	elseif t.Type=="end" then
-		if t.text=="leaking" then -- go directly to the block right under the current block if it exists
-			t=self:next()
-		else
-			os.exit()
-		end
-	elseif t.Type=="error" then
-		error(t.text)
-	else
-		t=self:next()
-	end
-	-- if true return t, else return false
-	return self.active and t
-end
-function parseManager:run(block)
-	local dat = self:mainRunner(block)
-	while dat do
-		dat = self:mainRunner()
+function parseManager.print(...)
+	if not noprint then
+		print(...)
 	end
 end
 function readonlytable(tab)
@@ -78,7 +34,7 @@ function readonlytable(tab)
 end
 function parseManager:debug(...)
 	if self.stats.debugging then
-		print("<DEBUG>",...)
+		parseManager.print("<DEBUG>",...)
 	end
 end
 function parseManager:newENV()
@@ -107,7 +63,7 @@ function factorial(n)
 end
 function parseManager:ENABLE(fn)
 	if fn == "hostmsg" then
-		noprint = false
+		noparseManager.print = false
 	end
 	self.stats[string.lower(fn)]=true
 end
@@ -175,7 +131,7 @@ function parseManager:loadCompiled(path)
 	c.usings = file:getBlock("t")
 	return c
 end
-function parseManager:load(path,c)
+function parseManager:load(path,c,noload)
 	local c = c
 	if not c then
 		c = {}
@@ -433,10 +389,10 @@ function table.print(tbl, indent)
 	for k, v in pairs(tbl) do
 		formatting = string.rep('  ', indent) .. k .. ': '
 		if type(v) == 'table' then
-			print(formatting)
+			parseManager.print(formatting)
 			table.print(v, indent+1)
 		else
-			print(formatting .. tostring(v))
+			parseManager.print(formatting .. tostring(v))
 		end
 	end
 end
@@ -445,22 +401,22 @@ function parseManager:pushError(err,sym)
 	if self.runtime then
 		run = "Run Time Error! "
 	end
-	if not self.currentChunk then print("ERROR compiling: ",err,sym) os.exit() end
+	if not self.currentChunk then parseManager.print("ERROR compiling: ",err,sym) os.exit() end
 	local lines = bin.load(self.currentChunk.path):lines()
 	local chunk = self.currentChunk[self.currentChunk.pos-1]
 	for i=1,#lines do
 		if sym then
 			if lines[i]:find(sym) then
-				print(run..err.." <"..sym.."> At line: "..i.." "..(lines[i]:gsub("^\t+","")))
+				parseManager.print(run..err.." <"..sym.."> At line: "..i.." "..(lines[i]:gsub("^\t+","")))
 				break
 			end
 		elseif chunk.Type=="fwor" or chunk.Type=="fwr" then
 			if lines[i]:match(chunk.Func.."%(") then
-				print(run..err.." At line: "..i.." "..(lines[i]:gsub("^\t+","")).." ("..tostring(sym)..")")
+				parseManager.print(run..err.." At line: "..i.." "..(lines[i]:gsub("^\t+","")).." ("..tostring(sym)..")")
 				break
 			end
 		else
-			print(run..err.." Line: ?")
+			parseManager.print(run..err.." Line: ?")
 			break
 		end
 	end
@@ -468,7 +424,7 @@ function parseManager:pushError(err,sym)
 end
 function parseManager:pushWarning(warn)
 	if not self.stats["warnings"] then return end
-	print("WARNING: "..warn)
+	parseManager.print("WARNING: "..warn)
 end
 local function pieceList(list,self,name)
 	if #list==0 then
@@ -964,7 +920,7 @@ function parseManager:compile(name,ctype,data)
 						if type(t)=="string" then
 							t="+"..t
 						end
-						-- print(dat[2] .. (t or "+1"))
+						-- parseManager.print(dat[2] .. (t or "+1"))
 						self:compileAssign(dat[2],dat[2] .. (t or "+1"),name)
 						self:compileCondition(dat[2].."=="..tonumber(dat[4])+(tonumber(dat[7]) or 1),"GOTO(\""..s.."\")","GOTO(\""..dat[1].."\")",name)
 						data[i] = "::"..s.."::"
@@ -1320,34 +1276,33 @@ function parseManager:next(block,choice)
 	end
 	local chunk = self.currentChunk or self.chunks[block] or self.chunks["START"]
 	self.currentChunk=chunk
-	if choice then
-		local c=self.choiceData[choice][2]
-		local args=self:dataToValue(c.args)
-		if not self.methods[c.Func] then
-			self.lastCall=self:Invoke(c.Func,"lastCall",unpack(args))
-		else
-			self.lastCall=self.methods[c.Func](self,unpack(args))
-		end
-		return {Type="method"}
-	end
 	local ret
-	local data=chunk[chunk.pos]
+	local data
+	if not choice then
+		data=chunk[chunk.pos]
+	else
+		data = self.choiceData[choice][2]
+	end
 	if not data then self.isrunning = false return end
+	local IRET
 	if data.Type=="label" then
 		chunk.pos=chunk.pos+1
 		data=chunk[chunk.pos]
+		IRET = self.__LABEL(data.label,data.pos)
 	end
 	if not data then self.isrunning = false return end
 	chunk.pos=chunk.pos+1
 	self:debug("TYPE: "..data.Type)
 	if data.Type=="text" then
 		self.lastCall=nil
-		return {Type="text",text=self:parseHeader(data.text)}
+		IRET = self.__TEXT(self:parseHeader(data.text))
 	elseif data.Type=="funcblock" then
-		-- self:pairAssign(data.args,self.fArgs)
-		return {Type="FBLOCK"}
+		for i,v in ipairs(data.args) do
+			self.currentENV[v:sub(2,-1)]=self.fArgs[i]
+		end
+		IRET = self.__FBLOCK(args)
 	elseif data.Type=="return" then
-		return {Type="method",Vars = vars, RetArgs = data.RETArgs}
+		IRET = self.__RETURN(vars, data.RETArgs)
 	elseif data.Type=="fwr" then
 		local args=self:dataToValue(data.args,nil,data.Func == "__PUSHPARSE")
 		local rets={}
@@ -1363,11 +1318,12 @@ function parseManager:next(block,choice)
 		else
 			rets={Func(self,unpack(args))}
 		end
+		table.print(rets)
 		if #rets~=0 then
 			self:pairAssign(data.vars,rets)
 		end
 		self.lastCall=nil
-		return {Type="method",name=data.Func,args = args}
+		IRET = self.__METHOD(data.Func,args)
 	elseif data.Type=="fwor" then
 		local args=self:dataToValue(data.args)
 		local Func
@@ -1383,7 +1339,7 @@ function parseManager:next(block,choice)
 		else
 			self.lastCall=Func(self,unpack(args))
 		end
-		return {Type="method",name=data.Func,args = args}
+		IRET = self.__METHOD(data.Func,args)
 	elseif data.Type=="choice" then
 		self.choiceData=data
 		local CList={}
@@ -1391,11 +1347,13 @@ function parseManager:next(block,choice)
 			CList[#CList+1]=self:parseHeader(data[i][1])
 		end
 		self.lastCall=nil
-		return {Type="choice",prompt=self:parseHeader(data.prompt),CList}
+		local cm = self.__CHOICE(self:parseHeader(data.prompt),CList)
+		self:next(nil,cm)
+		return true
 	elseif data.Type=="assign" then
 		self:pairAssign(data.vars,data.vals)
 		self.lastCall=nil
-		return {Type="assign"}
+		IRET = self.__ASSIGN(vars,vals)
 	elseif data.Type=="toggle" then
 		local flags,target = data.Flags,data.Target
 		if flags == "USING" then
@@ -1412,11 +1370,70 @@ function parseManager:next(block,choice)
 		else
 			self:pushWarning("Invalid flag: "..flag.."!")
 		end
-		return {Type="method"} -- you cannot interact with the interpreter yet!
+		IRET = self.__TOGGLE(target,use,name)
 	else
 		self.lastCall=nil
-		return {Type="Custom Syntax"}
+		IRET = self.__CS(data.data)
 	end
-	return rets
+	if IRET=="KILL" then
+		return false
+	end
+	self:next()
+	return true
+end
+parseManager.__TEXT = function(text)
+	io.write(text)
+	io.read()
+end
+parseManager.__METHOD = function()
+	--
+end
+parseManager.__CHOICE = function(prompt,list)
+	print(prompt)
+	for i=1,#list do
+		print(i..". "..list[i])
+	end
+	io.write("Choose#: ")
+	cm=tonumber(io.read())
+	return cm
+end
+parseManager.__LABEL = function()
+	--
+end
+parseManager.__TOGGLE = function()
+	--
+end
+parseManager.__ASSIGN = function()
+	--
+end
+parseManager.__FBLOCK = function()
+	--
+end
+parseManager.__CS = function()
+	--
+end
+parseManager.__RETURN = function()
+	
+end
+function parseManager:Call(func,...)
+	local env = {}
+	local temp = parseManager:load(self.path,nil,true)
+	temp.fArgs = {...}
+	parseManager.__RETURN = function(vars,retargs)
+		env = temp:dataToEnv(retargs)
+		return "KILL"
+	end
+	temp.entry = func
+	active = true
+	while active do
+		active = temp:think()
+	end
+	return unpack(env)
+end
+function parseManager:think()
+	self:next()
+	function parseManager:think()
+		-- Finish this
+	end
 end
 require("parseManager.standardDefine")

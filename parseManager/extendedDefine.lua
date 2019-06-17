@@ -1,3 +1,4 @@
+if parseManager.extendedDefineLoaded then return false end
 local multi, bin, GLOBAL,sThread
 local loaded, err = pcall(function()
 	multi = require("multi")
@@ -10,6 +11,7 @@ local loaded, err = pcall(function()
 	bin = require("bin")
 end)
 function parseManager:extendedDefine()
+	parseManager.extendedDefineLoaded = true
 	if not loaded then self:pushWarning("Could not load the extendedDefine module!") print(err) end
 	local tc = 1
 	self.mainENV=GLOBAL
