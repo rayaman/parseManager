@@ -1,4 +1,4 @@
-if parseManager.extendedDefineLoaded then return false end
+if parseManager.threadingLoaded then return false end
 local multi, bin, GLOBAL,sThread
 local loaded, err = pcall(function()
 	multi = require("multi")
@@ -10,9 +10,9 @@ local loaded, err = pcall(function()
 	end
 	bin = require("bin")
 end)
-function parseManager:extendedDefine()
-	parseManager.extendedDefineLoaded = true
-	if not loaded then self:pushWarning("Could not load the extendedDefine module!") print(err) end
+function parseManager:threading()
+	parseManager.threadingLoaded = true
+	if not loaded then self:pushWarning("Could not load the threading module!") print(err) end
 	local tc = 1
 	self.mainENV=GLOBAL
 	self.currentENV=GLOBAL
@@ -31,6 +31,7 @@ function parseManager:extendedDefine()
 					sThread=_G.sThread
 				end
 				local test=parseManager:load(path)
+				test.entry = blck
 				test.mainENV = GLOBAL
 				test.currentENV = GLOBAL
 				test:define{
@@ -41,35 +42,10 @@ function parseManager:extendedDefine()
 						os.execute("title "..t)
 					end
 				}
-				t=test:next(blck)
-				multi:newThread(name,function()
-					while true do
-						thread.skip(0)
-						if not t then error("Thread ended!") end
-						if t.Type=="text" then
-							log(t.text,name)
-							t=test:next()
-						elseif t.Type=="condition" then
-							t=test:next()
-						elseif t.Type=="assignment" then
-							t=test:next()
-						elseif t.Type=="label" then
-							t=test:next()
-						elseif t.Type=="method" then
-							t=test:next()
-						elseif t.Type=="choice" then
-							t=test:next(nil,math.random(1,#t.choices),nil,t)
-						elseif t.Type=="end" then
-							if t.text=="leaking" then -- go directly to the block right under the current block if it exists
-								t=test:next()
-							else
-								os.exit()
-							end
-						elseif t.Type=="error" then
-							error(t.text)
-						else
-							t=test:next()
-						end
+				local active = true
+				multi:newThread("Thread",function()
+					while active do
+						test:think()
 					end
 				end)
 				multi:mainloop()

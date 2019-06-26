@@ -1,7 +1,7 @@
 local noprint
 require("bin")
 parseManager={}
-parseManager.VERSION = 5
+parseManager.VERSION = 6
 parseManager.__index=parseManager
 parseManager.chunks={}
 parseManager.stats={warnings = true}
@@ -1318,7 +1318,6 @@ function parseManager:next(block,choice)
 		else
 			rets={Func(self,unpack(args))}
 		end
-		table.print(rets)
 		if #rets~=0 then
 			self:pairAssign(data.vars,rets)
 		end
@@ -1333,6 +1332,9 @@ function parseManager:next(block,choice)
 			Func=self.currentENV[data.Func[1]][data.Func[2]]
 		else
 			Func=self.methods[data.Func]
+		end
+		if Func == nil then
+			self:pushError("Attempt to call a non existing function!",data.Func)
 		end
 		if Ext then
 			self.lastCall=Func(unpack(args))
@@ -1378,7 +1380,6 @@ function parseManager:next(block,choice)
 	if IRET=="KILL" then
 		return false
 	end
-	self:next()
 	return true
 end
 parseManager.__TEXT = function(text)
@@ -1413,27 +1414,25 @@ parseManager.__CS = function()
 	--
 end
 parseManager.__RETURN = function()
-	
+	--
 end
 function parseManager:Call(func,...)
 	local env = {}
-	local temp = parseManager:load(self.path,nil,true)
+	local temp
+	temp = parseManager:load(self.path,nil,true)
 	temp.fArgs = {...}
-	parseManager.__RETURN = function(vars,retargs)
+	temp.__RETURN = function(vars,retargs)
 		env = temp:dataToEnv(retargs)
 		return "KILL"
 	end
 	temp.entry = func
-	active = true
+	local active = true
 	while active do
 		active = temp:think()
 	end
 	return unpack(env)
 end
 function parseManager:think()
-	self:next()
-	function parseManager:think()
-		-- Finish this
-	end
+	return self:next()
 end
 require("parseManager.standardDefine")

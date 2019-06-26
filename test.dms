@@ -1,29 +1,9 @@
-ENTRY INIT2
+ENTRY INIT
 LOADFILE Story/bedroom.dms
-// USING extendedDefine
+USING threading
 DISABLE warnings
 USING audio as audio
 // DISABLE hostmsg
-[INIT2]{
-	"Text block"
-	"Testing default text handler"
-	g=DoMe(2)
-	print("WHAT!!! $g$")
-}
-[A]{
-	"Yay it works!"
-}
-[DoMe:function(a)]{
-	"handle me"
-	if a==0 then SKIP(0)|GOTO("end")
-		return 1
-	::end::
-		return a*SecondCall(a-1)
-}
-[SecondCall:function()]{
-	return 6
-}
-/*
 [INIT]{
 	// The LOAD function will load variables and jump to the saved location. Be sure to setup runtime variables before the LOAD function is called!
 	WATCH("money","name","day","chapter","passive")
@@ -44,11 +24,9 @@ USING audio as audio
 	JUMP("START")
 }
 [UPDATER]{
-	maintheme=audio:new("Audio/Nadia.ogg")
-	maintheme:play(.5)
 	::loop::
 		EXECUTE("title $name$ $$money$ Day: $day$ Chap: $chapter$")
-		sleep(.1)
+		sleep(1)
 		money = money + passive
 	GOTO("loop")
 }
@@ -63,11 +41,13 @@ USING audio as audio
 	// >
 }
 [START]{
+	maintheme=audio.new("Audio/Nadia.ogg")
+	maintheme:play(.5)
 	"HI!"
 	maintheme:setVolume(1)
 	sleep(1)
-	Fade(maintheme)
+	// Fade(maintheme)
 	"Yo"
 	// JUMP("BEDROOM")
 }
-*/
+
