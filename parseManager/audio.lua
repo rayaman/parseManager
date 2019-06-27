@@ -6,6 +6,7 @@ function audio:new(path)
 	local c = {}
 	c.path = path
 	c.handle = proAudio.sampleFromFile(path)
+	print("Created:",c.handle)
 	setmetatable(c,audio)
 	return c
 end
@@ -22,6 +23,7 @@ function audio:stop()
 	proAudio.soundStop(self.handle)
 end
 function audio:setVolume(volume)
+	local volume = tonumber(volume) or 1
 	proAudio.soundUpdate(self.handle,volume,volume)
 end
 function parseManager:audio()

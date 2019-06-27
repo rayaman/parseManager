@@ -1,0 +1,30 @@
+ENTRY init
+USING audio as audio
+[init]{
+	bgm = audio:new("Audio/Lost World - myuu.ogg")
+	bgm:play(1)
+	bgm:setVolume(.1)
+	JUMP("CHOOSE")
+}
+[CHOOSE]{
+	"Choose"<
+		"fade in" JUMP("FADEIN")
+		"fade out" JUMP("FADEOUT")
+		"exit" JUMP("quit")
+	>
+}
+[FADEIN]{
+	for x = 100,1,-1 <
+		sleep(.1)
+		bgm:setVolume(100/x)
+	>
+}
+[FADEOUT]{
+	for x = 100,1,-1 <
+		sleep(.1)
+		bgm:setVolume(x/100)
+	>
+}
+[quit]{
+	QUIT()
+}

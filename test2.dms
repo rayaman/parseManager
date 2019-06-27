@@ -1,0 +1,16 @@
+USING multi as multi
+USING bin as bin
+ENTRY INIT
+[INIT]{
+	// "Hi!"
+	// "Lets do a test"
+	file = bin.new()
+	file.data = "We can write data like this too!"
+	print(file)
+	file:tofile("hey.txt")
+	// multi:newTLoop(test,1)
+	// multi:mainloop()
+}
+[test:function(self,a)]{
+	print("Loops: $a$")
+}

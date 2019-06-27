@@ -74,15 +74,24 @@ function parseManager:DISABLE(fn)
 	self.stats[string.lower(fn)]=false
 end
 function parseManager:USING(fn,name)
-	local m = require("parseManager."..fn)
+	local loaded, m = pcall(require,"parseManager."..fn)
+	if not loaded then 
+		loaded, m = pcall(require,fn)
+		if not loaded then
+			self:pushError("Unable to load module "..fn.."!")
+		end
+	end
 	self.usings[#self.usings]={fn,name}
 	if not m then
 		self:pushError(fn.." was not found as an import that can be used!")
 	else
-		local ret = self[fn](self)
-		if ret then
-			self.mainENV[name or fn]=ret
+		local ret
+		if self[fn] then
+			ret = self[fn](self)
+		else
+			ret = m
 		end
+		self.mainENV[name or fn]=ret
 	end
 end
 --[[
@@ -852,13 +861,11 @@ local function extract(dat,name)
 		return dat
 	end
 end
+parseManager.isInternal={}
 function parseManager:compile(name,ctype,data)
 	local isFBlock,FBArgs=ctype:match("(f)unction%((.*)%)")
 	--Check if we are dealing with a FBlock
 	if isFBlock=="f" then
-		if not self.isInternal then
-			self.isInternal = {}
-		end
 		self.cFuncs[name]=true
 		-- if self.methods[name] then
 			-- self:pushError("You cannot create a method with the same name as a standard method or duplicate method names!",name)
@@ -918,9 +925,9 @@ function parseManager:compile(name,ctype,data)
 					if cmd==1 then
 						local t = extract(dat[7],name)
 						if type(t)=="string" then
-							t="+"..t
+							t="+"..(t~="" and t or 1)
 						end
-						-- parseManager.print(dat[2] .. (t or "+1"))
+						parseManager.print(dat[2] .. (t or "+1"))
 						self:compileAssign(dat[2],dat[2] .. (t or "+1"),name)
 						self:compileCondition(dat[2].."=="..tonumber(dat[4])+(tonumber(dat[7]) or 1),"GOTO(\""..s.."\")","GOTO(\""..dat[1].."\")",name)
 						data[i] = "::"..s.."::"
@@ -1288,7 +1295,9 @@ function parseManager:next(block,choice)
 	if data.Type=="label" then
 		chunk.pos=chunk.pos+1
 		data=chunk[chunk.pos]
-		IRET = self.__LABEL(data.label,data.pos)
+		if data then 
+			IRET = self.__LABEL(data.label,data.pos)
+		end
 	end
 	if not data then self.isrunning = false return end
 	chunk.pos=chunk.pos+1
@@ -1313,7 +1322,7 @@ function parseManager:next(block,choice)
 		else
 			Func=self.methods[data.Func]
 		end
-		if self.isInternal[data.Func] then
+		if not self.methods[data.Func] then
 			rets={Func(unpack(args))}
 		else
 			rets={Func(self,unpack(args))}
